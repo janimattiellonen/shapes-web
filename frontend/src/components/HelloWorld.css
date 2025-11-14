@@ -1,0 +1,70 @@
+.hello-world-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 2rem;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.hello-world-container h2 {
+  color: #333;
+  margin-bottom: 1rem;
+}
+
+.hello-world-button {
+  padding: 0.75rem 2rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: white;
+  background-color: #646cff;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.25s;
+}
+
+.hello-world-button:hover:not(:disabled) {
+  background-color: #535bf2;
+}
+
+.hello-world-button:disabled {
+  background-color: #999;
+  cursor: not-allowed;
+}
+
+.response-container {
+  background-color: #f0f0f0;
+  padding: 1.5rem;
+  border-radius: 8px;
+  width: 100%;
+  text-align: center;
+}
+
+.response-container h3 {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  color: #333;
+}
+
+.server-response {
+  font-size: 1.25rem;
+  font-weight: 500;
+  color: #646cff;
+  margin: 0;
+}
+
+.error-container {
+  background-color: #fee;
+  padding: 1rem;
+  border-radius: 8px;
+  border: 1px solid #fcc;
+  width: 100%;
+}
+
+.error-message {
+  color: #c33;
+  margin: 0;
+  font-weight: 500;
+}
