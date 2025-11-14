@@ -29,3 +29,9 @@ dist/
 # Environment variables
 .env
 .env.local
+
+# ML Models (too large for git)
+backend/app/ml/models/*.keras
+backend/app/ml/models/*.h5
+backend/app/ml/models/*.pb
+backend/app/ml/models/*.weights.h5
