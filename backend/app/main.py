@@ -2,7 +2,7 @@ from datetime import datetime
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Dict
+from typing import Dict, Optional
 import logging
 
 from app.services.shape_predictor import ShapePredictor
@@ -48,10 +48,18 @@ async def hello_world(request: HelloWorldRequest):
     return HelloWorldResponse(response=response_text)
 
 
+class BoundingBox(BaseModel):
+    x: float
+    y: float
+    width: float
+    height: float
+
+
 class ShapeDetectionResponse(BaseModel):
     shape: str
     confidence: float
     probabilities: Dict[str, float]
+    bounding_box: Optional[BoundingBox]
 
 
 # Initialize predictor on startup

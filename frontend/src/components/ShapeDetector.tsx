@@ -1,5 +1,12 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import './ShapeDetector.css';
+
+interface BoundingBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
 
 interface DetectionResult {
   shape: string;
@@ -9,6 +16,7 @@ interface DetectionResult {
     triangle: number;
     rectangle: number;
   };
+  bounding_box: BoundingBox | null;
 }
 
 export function ShapeDetector() {
@@ -18,7 +26,10 @@ export function ShapeDetector() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const [isDragging, setIsDragging] = useState<boolean>(false);
+  const [showBoundingBox, setShowBoundingBox] = useState<boolean>(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
 
   const handleFileSelect = (file: File) => {
     // Validate file type
@@ -117,6 +128,71 @@ export function ShapeDetector() {
     return (confidence * 100).toFixed(2);
   };
 
+  // Draw bounding box on canvas when result changes
+  useEffect(() => {
+    if (!result || !result.bounding_box || !showBoundingBox) {
+      // Clear canvas if no bounding box or checkbox unchecked
+      if (canvasRef.current) {
+        const ctx = canvasRef.current.getContext('2d');
+        if (ctx) {
+          ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+        }
+      }
+      return;
+    }
+
+    const image = imageRef.current;
+    const canvas = canvasRef.current;
+
+    if (!image || !canvas) return;
+
+    // Wait for image to load
+    const drawBox = () => {
+      const { width, height } = image.getBoundingClientRect();
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      ctx.clearRect(0, 0, width, height);
+
+      const box = result.bounding_box!;
+      const x = box.x * width;
+      const y = box.y * height;
+      const boxWidth = box.width * width;
+      const boxHeight = box.height * height;
+
+      // Draw bounding box
+      ctx.strokeStyle = '#646cff';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(x, y, boxWidth, boxHeight);
+
+      // Draw corner markers
+      const cornerSize = 10;
+      ctx.fillStyle = '#646cff';
+      // Top-left
+      ctx.fillRect(x - 2, y - 2, cornerSize, 4);
+      ctx.fillRect(x - 2, y - 2, 4, cornerSize);
+      // Top-right
+      ctx.fillRect(x + boxWidth - cornerSize + 2, y - 2, cornerSize, 4);
+      ctx.fillRect(x + boxWidth - 2, y - 2, 4, cornerSize);
+      // Bottom-left
+      ctx.fillRect(x - 2, y + boxHeight - 2, cornerSize, 4);
+      ctx.fillRect(x - 2, y + boxHeight - cornerSize + 2, 4, cornerSize);
+      // Bottom-right
+      ctx.fillRect(x + boxWidth - cornerSize + 2, y + boxHeight - 2, cornerSize, 4);
+      ctx.fillRect(x + boxWidth - 2, y + boxHeight - cornerSize + 2, 4, cornerSize);
+    };
+
+    if (image.complete) {
+      drawBox();
+    } else {
+      image.addEventListener('load', drawBox);
+      return () => image.removeEventListener('load', drawBox);
+    }
+  }, [result, showBoundingBox]);
+
   return (
     <div className="shape-detector-container">
       <h2>Shape Detection</h2>
@@ -145,10 +221,32 @@ export function ShapeDetector() {
           </div>
         ) : (
           <div className="preview-container">
-            <img src={previewUrl} alt="Preview" className="preview-image" />
+            <img
+              ref={imageRef}
+              src={previewUrl}
+              alt="Preview"
+              className="preview-image"
+            />
+            <canvas
+              ref={canvasRef}
+              className="bounding-box-canvas"
+            />
           </div>
         )}
       </div>
+
+      {result && result.bounding_box && (
+        <div className="bounding-box-control">
+          <label>
+            <input
+              type="checkbox"
+              checked={showBoundingBox}
+              onChange={(e) => setShowBoundingBox(e.target.checked)}
+            />
+            <span>Draw bounding border</span>
+          </label>
+        </div>
+      )}
 
       <div className="action-buttons">
         {selectedFile && !result && (
