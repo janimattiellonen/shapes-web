@@ -1,0 +1,282 @@
+.shape-detector-container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.shape-detector-container h2 {
+  color: #333;
+  margin-bottom: 0.5rem;
+  font-size: 2rem;
+}
+
+.subtitle {
+  color: #666;
+  margin-bottom: 2rem;
+  font-size: 1rem;
+}
+
+/* Upload Area */
+.upload-area {
+  border: 3px dashed #ddd;
+  border-radius: 12px;
+  padding: 3rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background-color: #fafafa;
+  min-height: 300px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.upload-area:hover {
+  border-color: #646cff;
+  background-color: #f5f5ff;
+}
+
+.upload-area.dragging {
+  border-color: #646cff;
+  background-color: #e8eaff;
+  transform: scale(1.02);
+}
+
+.upload-prompt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.upload-icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+}
+
+.upload-prompt p {
+  margin: 0;
+  color: #666;
+}
+
+.upload-hint {
+  font-size: 0.875rem;
+  color: #999;
+}
+
+/* Preview */
+.preview-container {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.preview-image {
+  max-width: 100%;
+  max-height: 400px;
+  border-radius: 8px;
+  object-fit: contain;
+}
+
+/* Action Buttons */
+.action-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-top: 1.5rem;
+}
+
+.detect-button {
+  padding: 0.875rem 2rem;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: white;
+  background-color: #646cff;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.25s;
+  min-width: 150px;
+}
+
+.detect-button:hover:not(:disabled) {
+  background-color: #535bf2;
+}
+
+.detect-button:disabled {
+  background-color: #999;
+  cursor: not-allowed;
+}
+
+.reset-button {
+  padding: 0.875rem 2rem;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #666;
+  background-color: white;
+  border: 2px solid #ddd;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.25s;
+}
+
+.reset-button:hover {
+  border-color: #999;
+  color: #333;
+}
+
+/* Error Container */
+.error-container {
+  background-color: #fee;
+  padding: 1rem;
+  border-radius: 8px;
+  border: 1px solid #fcc;
+  margin-top: 1.5rem;
+}
+
+.error-message {
+  color: #c33;
+  margin: 0;
+  font-weight: 500;
+  text-align: center;
+}
+
+/* Result Container */
+.result-container {
+  margin-top: 2rem;
+  padding: 2rem;
+  background-color: #f8f9fa;
+  border-radius: 12px;
+  border: 1px solid #e0e0e0;
+}
+
+.result-container h3 {
+  margin-top: 0;
+  margin-bottom: 1.5rem;
+  color: #333;
+  text-align: center;
+  font-size: 1.5rem;
+}
+
+.result-card {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  padding: 1.5rem;
+  background-color: white;
+  border-radius: 8px;
+  margin-bottom: 2rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.shape-icon {
+  font-size: 4rem;
+  flex-shrink: 0;
+}
+
+.result-details {
+  flex-grow: 1;
+}
+
+.result-details p {
+  margin: 0.5rem 0;
+  font-size: 1.125rem;
+  color: #555;
+}
+
+.detected-shape strong,
+.confidence strong {
+  color: #646cff;
+  font-size: 1.25rem;
+}
+
+/* Probabilities */
+.probabilities-container {
+  margin-top: 1.5rem;
+}
+
+.probabilities-container h4 {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  color: #555;
+  font-size: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.probability-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.probability-item {
+  display: grid;
+  grid-template-columns: 120px 1fr 80px;
+  align-items: center;
+  gap: 1rem;
+}
+
+.probability-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 500;
+  color: #555;
+  text-transform: capitalize;
+}
+
+.probability-label span:first-child {
+  font-size: 1.5rem;
+}
+
+.probability-bar-container {
+  height: 24px;
+  background-color: #e0e0e0;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.probability-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #646cff, #535bf2);
+  border-radius: 12px;
+  transition: width 0.5s ease;
+}
+
+.probability-value {
+  text-align: right;
+  font-weight: 600;
+  color: #646cff;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .shape-detector-container {
+    padding: 1rem;
+  }
+
+  .upload-area {
+    padding: 2rem 1rem;
+    min-height: 250px;
+  }
+
+  .result-card {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .probability-item {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+
+  .probability-label {
+    justify-content: center;
+  }
+
+  .probability-value {
+    text-align: center;
+  }
+}

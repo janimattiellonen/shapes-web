@@ -1,0 +1,36 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# ML Models (too large for git)
+app/ml/models/*.keras
+app/ml/models/*.h5
+app/ml/models/*.pb
+app/ml/models/*.weights.h5
+
+# Environment
+.env
+.env.local
+*.env
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Distribution
+build/
+dist/
+*.egg-info/

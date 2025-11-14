@@ -71,4 +71,8 @@ The REST route should be /hello-world
 - create a simple route handler that listens to the route /hello-world and processes the request according to specs
 
 
-##Phase
+##Phase 4 Shape detection setup
+
+I already have a keras model for detecting ellipses, rectangles and triangles. However, it is used by calling command line scripts written in python.
+
+This existing project is located in /Users/janimattiellonen/Documents/Development/Keras/Shapes. Open README.md to learn more about this project's setup. This information is provided as a context, and not relevant at the
