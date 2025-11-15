@@ -5,3 +5,9 @@ pillow==11.1.0
 tensorflow==2.16.2
 numpy==1.26.4
 opencv-python-headless==4.10.0.84
+
+# Disc identification dependencies
+transformers==4.37.2
+torch==2.2.0
+psycopg2-binary==2.9.9
+python-dotenv==1.0.0
