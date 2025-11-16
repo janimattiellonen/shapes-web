@@ -1,13 +1,14 @@
 """API routes for disc identification."""
 from fastapi import APIRouter, UploadFile, File, HTTPException, Form
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Dict
 from PIL import Image
 import io
 import logging
 
 from .disc_matcher import DiscMatcher
 from .config import Config
+from .border_detection.disc_border_detector import DiscBorderDetector
 
 logger = logging.getLogger(__name__)
 
@@ -374,4 +375,77 @@ async def health_check():
         raise HTTPException(
             status_code=503,
             detail=f"Service unhealthy: {str(e)}"
+        )
+
+
+# Border Detection Endpoint (separate router for cleaner organization)
+border_router = APIRouter(prefix="/discs/border-detection", tags=["border-detection"])
+
+
+class BorderDetectionResponse(BaseModel):
+    """Response for border detection."""
+    detected: bool
+    border: Optional[Dict] = None
+    message: str
+
+
+@border_router.post("", response_model=BorderDetectionResponse)
+async def detect_border(image: UploadFile = File(...)):
+    """
+    Detect disc border in an image.
+
+    Identifies the circular or elliptical border of a disc golf disc.
+    Returns coordinates that can be used to crop or highlight the disc.
+
+    Args:
+        image: Uploaded image file (PNG, JPG, JPEG)
+
+    Returns:
+        BorderDetectionResponse with border coordinates:
+        - For circles: center (x, y), radius
+        - For ellipses: center (x, y), major/minor axes, rotation angle
+    """
+    # Validate file type
+    if image.content_type not in ["image/png", "image/jpeg", "image/jpg"]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid file type: {image.content_type}. Only PNG, JPG, JPEG are supported."
+        )
+
+    # Read and validate file size
+    contents = await image.read()
+    if len(contents) > Config.get_max_image_size_bytes():
+        raise HTTPException(
+            status_code=400,
+            detail=f"File too large. Maximum size is {Config.MAX_IMAGE_SIZE_MB}MB."
+        )
+
+    try:
+        # Open image
+        pil_image = Image.open(io.BytesIO(contents))
+
+        # Detect border
+        detector = DiscBorderDetector()
+        border_info = detector.detect_border(pil_image)
+
+        if border_info is None:
+            return BorderDetectionResponse(
+                detected=False,
+                border=None,
+                message="No disc border detected. Try with a clearer image."
+            )
+
+        logger.info(f"Border detected: {border_info['type']} with confidence {border_info.get('confidence', 0):.2f}")
+
+        return BorderDetectionResponse(
+            detected=True,
+            border=border_info,
+            message=f"Detected {border_info['type']} border successfully"
+        )
+
+    except Exception as e:
+        logger.error(f"Error detecting border: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error processing image: {str(e)}"
         )
