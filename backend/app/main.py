@@ -7,6 +7,7 @@ import logging
 
 from app.services.shape_predictor import ShapePredictor
 from app.disc_identification.routes import router as disc_identification_router
+from app.disc_identification.routes import border_router
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -16,6 +17,7 @@ app = FastAPI(title="Shape Detection API", version="1.0.0")
 
 # Include disc identification routes
 app.include_router(disc_identification_router)
+app.include_router(border_router)
 
 app.add_middleware(
     CORSMiddleware,
