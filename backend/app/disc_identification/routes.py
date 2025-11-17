@@ -1,10 +1,13 @@
 """API routes for disc identification."""
 from fastapi import APIRouter, UploadFile, File, HTTPException, Form
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict
 from PIL import Image
 import io
 import logging
+import os
+from pathlib import Path
 
 from .disc_matcher import DiscMatcher
 from .config import Config
@@ -375,6 +378,91 @@ async def health_check():
         raise HTTPException(
             status_code=503,
             detail=f"Service unhealthy: {str(e)}"
+        )
+
+
+@router.get("/{disc_id}/images/{image_filename}")
+async def get_disc_image(disc_id: int, image_filename: str):
+    """
+    Serve a disc image file.
+
+    Returns the actual image file for a given disc. Validates that the image
+    belongs to the specified disc before serving.
+
+    Args:
+        disc_id: ID of the disc
+        image_filename: Name of the image file to retrieve
+
+    Returns:
+        FileResponse with the image file
+
+    Raises:
+        404: If disc or image not found
+        403: If image doesn't belong to the specified disc
+    """
+    try:
+        matcher = get_disc_matcher()
+
+        # Get all images for this disc to validate the image belongs to it
+        disc_images = matcher.db.get_disc_images(disc_id)
+
+        if not disc_images:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No images found for disc ID {disc_id}"
+            )
+
+        # Construct the full image path
+        image_path = os.path.join(Config.UPLOAD_DIR, str(disc_id), image_filename)
+
+        # Validate that this image belongs to the disc
+        # Check if any of the disc's images match this path
+        valid_image = False
+        for img in disc_images:
+            # Check both image_path (if stored) and construct path from image_url
+            if img.get('image_path') == image_path or \
+               img.get('image_path', '').endswith(f"/{disc_id}/{image_filename}") or \
+               img.get('cropped_image_path', '').endswith(f"/{disc_id}/{image_filename}"):
+                valid_image = True
+                break
+
+        if not valid_image:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Image '{image_filename}' does not belong to disc ID {disc_id}"
+            )
+
+        # Check if file exists on disk
+        if not os.path.exists(image_path):
+            logger.error(f"Image file not found on disk: {image_path}")
+            raise HTTPException(
+                status_code=404,
+                detail=f"Image file not found: {image_filename}"
+            )
+
+        # Determine media type from file extension
+        file_ext = Path(image_filename).suffix.lower()
+        media_type_map = {
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.png': 'image/png'
+        }
+        media_type = media_type_map.get(file_ext, 'application/octet-stream')
+
+        logger.info(f"Serving image: {image_path}")
+        return FileResponse(
+            path=image_path,
+            media_type=media_type,
+            filename=image_filename
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error serving image: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error retrieving image: {str(e)}"
         )
 
 

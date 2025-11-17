@@ -24,6 +24,15 @@ class Config:
     DEFAULT_TOP_K: int = int(os.getenv('DEFAULT_TOP_K', '10'))
     MIN_SIMILARITY_THRESHOLD: float = float(os.getenv('MIN_SIMILARITY_THRESHOLD', '0.7'))
 
+    # Border detection configuration
+    BORDER_DETECTION_ENABLED: bool = os.getenv('BORDER_DETECTION_ENABLED', 'true').lower() == 'true'
+    BORDER_CONFIDENCE_THRESHOLD: float = float(os.getenv('BORDER_CONFIDENCE_THRESHOLD', '0.6'))
+    STORE_CROPPED_IMAGES: bool = os.getenv('STORE_CROPPED_IMAGES', 'true').lower() == 'true'
+    ENCODE_BOTH_VERSIONS: bool = os.getenv('ENCODE_BOTH_VERSIONS', 'true').lower() == 'true'
+
+    # Matching configuration
+    PREFER_CROPPED_MATCHING: bool = os.getenv('PREFER_CROPPED_MATCHING', 'true').lower() == 'true'
+
     @classmethod
     def get_max_image_size_bytes(cls) -> int:
         """Get maximum image size in bytes."""

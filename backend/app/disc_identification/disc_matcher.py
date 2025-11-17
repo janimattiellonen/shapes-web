@@ -8,6 +8,7 @@ from .encoders.base_encoder import ImageEncoder
 from .encoders.encoder_factory import EncoderFactory
 from .database import DatabaseService
 from .config import Config
+from .border_detection.border_service import BorderService
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +19,8 @@ class DiscMatcher:
     def __init__(
         self,
         encoder: Optional[ImageEncoder] = None,
-        database: Optional[DatabaseService] = None
+        database: Optional[DatabaseService] = None,
+        border_service: Optional[BorderService] = None
     ):
         """
         Initialize disc matcher.
@@ -26,10 +28,17 @@ class DiscMatcher:
         Args:
             encoder: Image encoder instance (defaults to config ENCODER_TYPE)
             database: Database service instance
+            border_service: Border detection service instance
         """
         self.encoder = encoder or EncoderFactory.create(Config.ENCODER_TYPE)
         self.database = database or DatabaseService()
+        self.border_service = border_service or BorderService()
         logger.info(f"Initialized DiscMatcher with {self.encoder.get_model_name()} encoder")
+
+    @property
+    def db(self) -> DatabaseService:
+        """Alias for database service (for backward compatibility)."""
+        return self.database
 
     def add_disc(
         self,
@@ -46,6 +55,9 @@ class DiscMatcher:
         """
         Add a disc to the database with its image.
 
+        Performs automatic border detection and creates both original and
+        cropped embeddings when border detection is enabled.
+
         Args:
             image: PIL Image object
             owner_name: Owner's name
@@ -58,13 +70,11 @@ class DiscMatcher:
             location: Location info
 
         Returns:
-            Dictionary with disc_id and image_id
+            Dictionary with disc_id, image_id, and border detection info
         """
-        # Extract embedding from image
-        embedding = self.encoder.encode(image)
         model_name = self.encoder.get_model_name()
 
-        # Create disc record
+        # Create disc record first (need disc_id for saving images)
         disc_id = self.database.add_disc(
             owner_name=owner_name,
             owner_contact=owner_contact,
@@ -75,24 +85,79 @@ class DiscMatcher:
             location=location
         )
 
-        # Save image to storage
+        # Save original image to storage
         image_path = self._save_image(image, disc_id, image_filename)
 
-        # Add image with embedding to database
+        # Initialize embedding variables
+        original_embedding = None
+        cropped_embedding = None
+        border_info = None
+        cropped_image_path = None
+        preprocessing_metadata = None
+
+        # Step 1: Always encode original image
+        if Config.ENCODE_BOTH_VERSIONS or not Config.BORDER_DETECTION_ENABLED:
+            logger.info(f"Encoding original image for disc {disc_id}")
+            original_embedding = self.encoder.encode(image)
+
+        # Step 2: Border detection and cropped encoding (if enabled)
+        if Config.BORDER_DETECTION_ENABLED:
+            logger.info(f"Running border detection for disc {disc_id}")
+            border_result = self.border_service.detect_and_process(
+                image=image,
+                disc_id=disc_id,
+                save_cropped=Config.STORE_CROPPED_IMAGES
+            )
+
+            if border_result.detected:
+                border_info = border_result.border_info
+                cropped_image_path = border_result.cropped_image_path
+                preprocessing_metadata = border_result.preprocessing_metadata
+
+                # Encode cropped image if available and quality is good
+                if self.border_service.should_use_cropped(border_result):
+                    logger.info(
+                        f"Encoding cropped image for disc {disc_id} "
+                        f"(confidence: {border_result.confidence:.2f})"
+                    )
+                    cropped_embedding = self.encoder.encode(border_result.cropped_image)
+
+                    # If we only want cropped embeddings, don't store original
+                    if not Config.ENCODE_BOTH_VERSIONS:
+                        original_embedding = None
+                else:
+                    logger.warning(
+                        f"Border detection quality insufficient for disc {disc_id} "
+                        f"(confidence: {border_result.confidence:.2f})"
+                    )
+            else:
+                logger.info(f"No border detected for disc {disc_id}, using original only")
+
+        # Step 3: Add image with embeddings to database
         image_id = self.database.add_disc_image(
             disc_id=disc_id,
             image_url=image_path,
-            embedding=embedding,
             model_name=model_name,
-            image_path=image_path
+            image_path=image_path,
+            original_embedding=original_embedding,
+            cropped_embedding=cropped_embedding,
+            border_info=border_info,
+            cropped_image_path=cropped_image_path,
+            preprocessing_metadata=preprocessing_metadata
         )
 
-        logger.info(f"Added disc {disc_id} with image {image_id}")
+        logger.info(
+            f"Added disc {disc_id} with image {image_id} "
+            f"(original_emb: {original_embedding is not None}, "
+            f"cropped_emb: {cropped_embedding is not None})"
+        )
 
         return {
             'disc_id': disc_id,
             'image_id': image_id,
-            'model_used': model_name
+            'model_used': model_name,
+            'border_detected': border_info is not None,
+            'border_confidence': border_info.get('confidence', 0) if border_info else 0
         }
 
     def find_matches(
@@ -105,6 +170,9 @@ class DiscMatcher:
         """
         Find matching discs for a query image.
 
+        Performs border detection on the query image and uses cropped embeddings
+        when available for improved matching accuracy.
+
         Args:
             query_image: PIL Image to search for
             top_k: Number of results to return
@@ -116,17 +184,41 @@ class DiscMatcher:
         """
         top_k = top_k or Config.DEFAULT_TOP_K
         min_similarity = min_similarity or Config.MIN_SIMILARITY_THRESHOLD
-
-        # Extract embedding from query image
-        query_embedding = self.encoder.encode(query_image)
         model_name = self.encoder.get_model_name()
 
-        # Search database
+        # Initialize embeddings
+        query_original_embedding = None
+        query_cropped_embedding = None
+
+        # Step 1: Encode original query image (always, for fallback)
+        logger.info("Encoding original query image")
+        query_original_embedding = self.encoder.encode(query_image)
+
+        # Step 2: Border detection and cropped encoding (if enabled)
+        if Config.BORDER_DETECTION_ENABLED:
+            logger.info("Running border detection on query image")
+            border_result = self.border_service.detect_and_process(
+                image=query_image,
+                disc_id=None,  # No disc_id for query images
+                save_cropped=False  # Don't save query images
+            )
+
+            if border_result.detected and self.border_service.should_use_cropped(border_result):
+                logger.info(
+                    f"Encoding cropped query image (confidence: {border_result.confidence:.2f})"
+                )
+                query_cropped_embedding = self.encoder.encode(border_result.cropped_image)
+            else:
+                logger.info("Query border detection insufficient, using original only")
+
+        # Step 3: Search database with appropriate embeddings
         results = self.database.search_similar_discs(
-            query_embedding=query_embedding,
             model_name=model_name,
             top_k=top_k,
-            status_filter=status_filter
+            status_filter=status_filter,
+            query_original_embedding=query_original_embedding,
+            query_cropped_embedding=query_cropped_embedding,
+            prefer_cropped=Config.PREFER_CROPPED_MATCHING
         )
 
         # Filter by minimum similarity
@@ -137,7 +229,8 @@ class DiscMatcher:
 
         logger.info(
             f"Found {len(filtered_results)} matches above {min_similarity} threshold "
-            f"(out of {len(results)} total)"
+            f"(out of {len(results)} total), "
+            f"using {'cropped' if query_cropped_embedding is not None else 'original'} query embedding"
         )
 
         return filtered_results
@@ -151,6 +244,9 @@ class DiscMatcher:
         """
         Add an additional image to an existing disc.
 
+        Performs automatic border detection and creates both original and
+        cropped embeddings when border detection is enabled.
+
         Args:
             disc_id: Existing disc ID
             image: PIL Image object
@@ -159,23 +255,62 @@ class DiscMatcher:
         Returns:
             Image ID
         """
-        # Extract embedding
-        embedding = self.encoder.encode(image)
         model_name = self.encoder.get_model_name()
 
-        # Save image
+        # Save original image
         image_path = self._save_image(image, disc_id, image_filename)
 
-        # Add to database
+        # Initialize embedding variables
+        original_embedding = None
+        cropped_embedding = None
+        border_info = None
+        cropped_image_path = None
+        preprocessing_metadata = None
+
+        # Step 1: Always encode original image
+        if Config.ENCODE_BOTH_VERSIONS or not Config.BORDER_DETECTION_ENABLED:
+            logger.info(f"Encoding original image for disc {disc_id}")
+            original_embedding = self.encoder.encode(image)
+
+        # Step 2: Border detection and cropped encoding (if enabled)
+        if Config.BORDER_DETECTION_ENABLED:
+            logger.info(f"Running border detection for additional image on disc {disc_id}")
+            border_result = self.border_service.detect_and_process(
+                image=image,
+                disc_id=disc_id,
+                save_cropped=Config.STORE_CROPPED_IMAGES
+            )
+
+            if border_result.detected:
+                border_info = border_result.border_info
+                cropped_image_path = border_result.cropped_image_path
+                preprocessing_metadata = border_result.preprocessing_metadata
+
+                if self.border_service.should_use_cropped(border_result):
+                    logger.info(f"Encoding cropped image (confidence: {border_result.confidence:.2f})")
+                    cropped_embedding = self.encoder.encode(border_result.cropped_image)
+
+                    if not Config.ENCODE_BOTH_VERSIONS:
+                        original_embedding = None
+
+        # Add to database with embeddings
         image_id = self.database.add_disc_image(
             disc_id=disc_id,
             image_url=image_path,
-            embedding=embedding,
             model_name=model_name,
-            image_path=image_path
+            image_path=image_path,
+            original_embedding=original_embedding,
+            cropped_embedding=cropped_embedding,
+            border_info=border_info,
+            cropped_image_path=cropped_image_path,
+            preprocessing_metadata=preprocessing_metadata
         )
 
-        logger.info(f"Added additional image {image_id} to disc {disc_id}")
+        logger.info(
+            f"Added additional image {image_id} to disc {disc_id} "
+            f"(original_emb: {original_embedding is not None}, "
+            f"cropped_emb: {cropped_embedding is not None})"
+        )
         return image_id
 
     def update_disc_status(
