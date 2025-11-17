@@ -143,7 +143,7 @@ npm install
 # Start development server
 npm run dev
 
-# The frontend will be available at http://localhost:5173
+# The frontend will be available at http://localhost:5199
 ```
 
 ## Usage
@@ -161,7 +161,7 @@ npm run dev
    npm run dev
    ```
 
-3. **Open your browser** to http://localhost:5173
+3. **Open your browser** to http://localhost:5199
 
 4. **Upload an image**:
    - Click the upload area or drag-and-drop an image
@@ -276,7 +276,7 @@ docker exec -it shapes-backend bash
 ### Backend Configuration
 
 Edit `backend/app/main.py` to configure:
-- CORS origins (currently set to `http://localhost:5173`)
+- CORS origins (currently set to `http://localhost:5199`)
 - Model path
 - Logging level
 
@@ -302,12 +302,12 @@ Edit `docker-compose.yml` to configure:
 **Solution**: Ensure the model file is copied to the correct location (see Setup step 2)
 
 ### Port already in use
-**Error**: `Port 8000/5173 is already in use`
+**Error**: `Port 8000/5199 is already in use`
 
 **Solution**:
 ```bash
 # Find process using the port
-lsof -i :8000  # or :5173
+lsof -i :8000  # or :5199
 # Kill the process
 kill -9 <PID>
 ```
