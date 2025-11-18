@@ -43,7 +43,8 @@ class DatabaseService:
         disc_color: Optional[str] = None,
         notes: Optional[str] = None,
         status: str = 'registered',
-        location: Optional[str] = None
+        location: Optional[str] = None,
+        upload_status: str = 'PENDING'
     ) -> int:
         """
         Add a new disc to the database.
@@ -56,6 +57,7 @@ class DatabaseService:
             notes: Additional notes
             status: Status ('registered', 'stolen', 'found')
             location: Location information
+            upload_status: Upload workflow status ('PENDING', 'SUCCESS')
 
         Returns:
             ID of created disc record
@@ -64,11 +66,11 @@ class DatabaseService:
         with conn.cursor() as cur:
             cur.execute(
                 """
-                INSERT INTO discs (owner_name, owner_contact, disc_model, disc_color, notes, status, location)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO discs (owner_name, owner_contact, disc_model, disc_color, notes, status, location, upload_status)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
                 """,
-                (owner_name, owner_contact, disc_model, disc_color, notes, status, location)
+                (owner_name, owner_contact, disc_model, disc_color, notes, status, location, upload_status)
             )
             disc_id = cur.fetchone()[0]
             conn.commit()
@@ -299,3 +301,54 @@ class DatabaseService:
             )
             results = cur.fetchall()
             return [dict(row) for row in results]
+
+    def confirm_disc_upload(self, disc_id: int) -> bool:
+        """
+        Confirm disc upload by updating upload_status to SUCCESS.
+
+        Args:
+            disc_id: Disc ID
+
+        Returns:
+            True if updated, False otherwise
+        """
+        conn = self.get_connection()
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE discs
+                SET upload_status = 'SUCCESS'
+                WHERE id = %s AND upload_status = 'PENDING'
+                """,
+                (disc_id,)
+            )
+            conn.commit()
+            updated = cur.rowcount > 0
+            if updated:
+                logger.info(f"Confirmed disc upload for ID: {disc_id}")
+            return updated
+
+    def delete_disc(self, disc_id: int) -> bool:
+        """
+        Delete a disc and all associated images.
+
+        Args:
+            disc_id: Disc ID
+
+        Returns:
+            True if deleted, False otherwise
+        """
+        conn = self.get_connection()
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                DELETE FROM discs
+                WHERE id = %s
+                """,
+                (disc_id,)
+            )
+            conn.commit()
+            deleted = cur.rowcount > 0
+            if deleted:
+                logger.info(f"Deleted disc with ID: {disc_id}")
+            return deleted

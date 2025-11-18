@@ -2,6 +2,7 @@ import type { RouteObject } from 'react-router-dom'
 import { MainLayout } from '../layouts/MainLayout'
 import ShapeDetectionPage from '../pages/ShapeDetectionPage'
 import BorderDetectionPage from '../pages/BorderDetectionPage'
+import NewDiscPage from '../pages/NewDiscPage'
 
 export const routes: RouteObject[] = [
   {
@@ -14,6 +15,10 @@ export const routes: RouteObject[] = [
       {
         path: '/discs/border-detection',
         element: <BorderDetectionPage />
+      },
+      {
+        path: '/discs/new',
+        element: <NewDiscPage />
       }
     ]
   }

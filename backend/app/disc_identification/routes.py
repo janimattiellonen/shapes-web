@@ -12,6 +12,7 @@ from pathlib import Path
 from .disc_matcher import DiscMatcher
 from .config import Config
 from .border_detection.disc_border_detector import DiscBorderDetector
+import shutil
 
 logger = logging.getLogger(__name__)
 
@@ -536,4 +537,244 @@ async def detect_border(image: UploadFile = File(...)):
         raise HTTPException(
             status_code=500,
             detail=f"Error processing image: {str(e)}"
+        )
+
+
+# New Disc Upload Workflow Endpoints
+upload_router = APIRouter(prefix="/discs", tags=["disc-upload"])
+
+
+class DiscUploadResponse(BaseModel):
+    """Response for disc upload."""
+    disc_id: int
+    border_detected: bool
+    border: Optional[Dict] = None
+    image_url: str
+    message: str
+
+
+class DiscConfirmResponse(BaseModel):
+    """Response for disc confirmation."""
+    disc_id: int
+    status: str
+    message: str
+
+
+class DiscCancelResponse(BaseModel):
+    """Response for disc cancellation."""
+    disc_id: int
+    deleted: bool
+    message: str
+
+
+@upload_router.post("/upload", response_model=DiscUploadResponse)
+async def upload_disc(image: UploadFile = File(...)):
+    """
+    Upload a new disc image and detect border.
+
+    Creates a disc record with PENDING status, saves the image,
+    and runs border detection. The user can then confirm or cancel.
+
+    Args:
+        image: Disc image file (PNG, JPG, JPEG)
+
+    Returns:
+        DiscUploadResponse with disc_id, border detection results, and image URL
+    """
+    # Validate file type
+    if image.content_type not in ["image/png", "image/jpeg", "image/jpg"]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid file type: {image.content_type}. Only PNG, JPG, JPEG are supported."
+        )
+
+    # Read and validate file size
+    contents = await image.read()
+    if len(contents) > Config.get_max_image_size_bytes():
+        raise HTTPException(
+            status_code=400,
+            detail=f"File too large. Maximum size is {Config.MAX_IMAGE_SIZE_MB}MB."
+        )
+
+    try:
+        # Open image
+        pil_image = Image.open(io.BytesIO(contents))
+
+        # Get disc matcher
+        matcher = get_disc_matcher()
+
+        # Create disc record with PENDING status
+        # Using placeholder values since we're not collecting owner info yet
+        disc_id = matcher.database.add_disc(
+            owner_name="Pending",
+            owner_contact="pending@example.com",
+            upload_status='PENDING',
+            status='registered'
+        )
+
+        # Save image to storage
+        upload_dir = Config.UPLOAD_DIR
+        os.makedirs(upload_dir, exist_ok=True)
+        disc_dir = os.path.join(upload_dir, str(disc_id))
+        os.makedirs(disc_dir, exist_ok=True)
+
+        # Save original image
+        image_filename = image.filename or "disc.jpg"
+        image_path = os.path.join(disc_dir, image_filename)
+        pil_image.save(image_path, quality=95)
+
+        logger.info(f"Saved image for disc {disc_id} to {image_path}")
+
+        # Detect border
+        detector = DiscBorderDetector()
+        border_info = detector.detect_border(pil_image)
+
+        border_detected = border_info is not None
+
+        if border_detected:
+            logger.info(f"Border detected for disc {disc_id}: {border_info['type']}")
+            message = f"Border detected successfully ({border_info['type']})"
+        else:
+            logger.info(f"No border detected for disc {disc_id}")
+            message = "No border detected. You can still save this disc."
+
+        # Construct image URL
+        image_url = f"/discs/identification/{disc_id}/images/{image_filename}"
+
+        return DiscUploadResponse(
+            disc_id=disc_id,
+            border_detected=border_detected,
+            border=border_info,
+            image_url=image_url,
+            message=message
+        )
+
+    except Exception as e:
+        logger.error(f"Error uploading disc: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error processing image: {str(e)}"
+        )
+
+
+@upload_router.post("/{disc_id}/confirm", response_model=DiscConfirmResponse)
+async def confirm_disc(disc_id: int):
+    """
+    Confirm disc upload and mark as SUCCESS.
+
+    Updates the disc's upload_status from PENDING to SUCCESS,
+    making it available for matching.
+
+    Args:
+        disc_id: Disc ID to confirm
+
+    Returns:
+        DiscConfirmResponse with confirmation status
+    """
+    try:
+        matcher = get_disc_matcher()
+
+        # Check if disc exists and is pending
+        disc_info = matcher.database.get_disc_by_id(disc_id)
+        if not disc_info:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Disc with ID {disc_id} not found"
+            )
+
+        if disc_info.get('upload_status') != 'PENDING':
+            raise HTTPException(
+                status_code=400,
+                detail=f"Disc {disc_id} is not in PENDING status (current: {disc_info.get('upload_status')})"
+            )
+
+        # Confirm the upload
+        success = matcher.database.confirm_disc_upload(disc_id)
+
+        if not success:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to confirm disc {disc_id}"
+            )
+
+        logger.info(f"Disc {disc_id} confirmed successfully")
+
+        return DiscConfirmResponse(
+            disc_id=disc_id,
+            status='SUCCESS',
+            message="Disc saved successfully"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error confirming disc: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error confirming disc: {str(e)}"
+        )
+
+
+@upload_router.delete("/{disc_id}/cancel", response_model=DiscCancelResponse)
+async def cancel_disc(disc_id: int):
+    """
+    Cancel disc upload and delete all data.
+
+    Deletes the disc record and all associated files from the filesystem.
+    Only works for discs with PENDING status.
+
+    Args:
+        disc_id: Disc ID to cancel
+
+    Returns:
+        DiscCancelResponse with deletion status
+    """
+    try:
+        matcher = get_disc_matcher()
+
+        # Check if disc exists
+        disc_info = matcher.database.get_disc_by_id(disc_id)
+        if not disc_info:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Disc with ID {disc_id} not found"
+            )
+
+        # Verify disc is in PENDING status (safety check)
+        if disc_info.get('upload_status') != 'PENDING':
+            raise HTTPException(
+                status_code=400,
+                detail=f"Can only cancel discs with PENDING status. Current status: {disc_info.get('upload_status')}"
+            )
+
+        # Delete files from filesystem
+        disc_dir = os.path.join(Config.UPLOAD_DIR, str(disc_id))
+        if os.path.exists(disc_dir):
+            shutil.rmtree(disc_dir)
+            logger.info(f"Deleted directory for disc {disc_id}: {disc_dir}")
+
+        # Delete from database (CASCADE will delete disc_images too)
+        success = matcher.database.delete_disc(disc_id)
+
+        if not success:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to delete disc {disc_id} from database"
+            )
+
+        logger.info(f"Disc {disc_id} cancelled and deleted successfully")
+
+        return DiscCancelResponse(
+            disc_id=disc_id,
+            deleted=True,
+            message="Disc cancelled and deleted successfully"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error cancelling disc: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error cancelling disc: {str(e)}"
         )
