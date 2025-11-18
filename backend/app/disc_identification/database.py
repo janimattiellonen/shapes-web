@@ -79,35 +79,52 @@ class DatabaseService:
         self,
         disc_id: int,
         image_url: str,
-        embedding: np.ndarray,
         model_name: str,
-        image_path: Optional[str] = None
+        image_path: Optional[str] = None,
+        original_embedding: Optional[np.ndarray] = None,
+        cropped_embedding: Optional[np.ndarray] = None,
+        border_info: Optional[Dict] = None,
+        cropped_image_path: Optional[str] = None,
+        preprocessing_metadata: Optional[Dict] = None
     ) -> int:
         """
-        Add a disc image with embedding to the database.
+        Add a disc image with embeddings to the database.
 
         Args:
             disc_id: ID of the disc
-            image_url: URL/path to image
-            embedding: Image embedding vector
+            image_url: URL/path to original image
             model_name: Name of encoder model used
-            image_path: Optional local file path
+            image_path: Optional local file path for original image
+            original_embedding: Embedding from original full image
+            cropped_embedding: Embedding from cropped disc region
+            border_info: Border detection metadata (JSONB)
+            cropped_image_path: Path to cropped image file
+            preprocessing_metadata: Additional preprocessing info (JSONB)
 
         Returns:
             ID of created disc_image record
         """
         conn = self.get_connection()
         with conn.cursor() as cur:
-            # Convert numpy array to list for PostgreSQL
-            embedding_list = embedding.tolist()
+            # Convert numpy arrays to lists for PostgreSQL
+            original_emb_list = original_embedding.tolist() if original_embedding is not None else None
+            cropped_emb_list = cropped_embedding.tolist() if cropped_embedding is not None else None
 
             cur.execute(
                 """
-                INSERT INTO disc_images (disc_id, image_url, image_path, embedding, model_name)
-                VALUES (%s, %s, %s, %s, %s)
+                INSERT INTO disc_images (
+                    disc_id, image_url, image_path, model_name,
+                    original_embedding, cropped_embedding,
+                    border_info, cropped_image_path, preprocessing_metadata
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
                 """,
-                (disc_id, image_url, image_path, embedding_list, model_name)
+                (
+                    disc_id, image_url, image_path, model_name,
+                    original_emb_list, cropped_emb_list,
+                    border_info, cropped_image_path, preprocessing_metadata
+                )
             )
             image_id = cur.fetchone()[0]
             conn.commit()
@@ -116,30 +133,51 @@ class DatabaseService:
 
     def search_similar_discs(
         self,
-        query_embedding: np.ndarray,
         model_name: str,
         top_k: int = 10,
-        status_filter: Optional[str] = None
+        status_filter: Optional[str] = None,
+        query_original_embedding: Optional[np.ndarray] = None,
+        query_cropped_embedding: Optional[np.ndarray] = None,
+        prefer_cropped: bool = True
     ) -> List[Dict]:
         """
         Search for similar discs using vector similarity.
 
+        Supports searching with both original and cropped embeddings.
+        When prefer_cropped=True, prioritizes cropped-to-cropped comparison.
+
         Args:
-            query_embedding: Query embedding vector
             model_name: Name of encoder model used
             top_k: Number of results to return
             status_filter: Optional filter by disc status
+            query_original_embedding: Query embedding from original image
+            query_cropped_embedding: Query embedding from cropped image
+            prefer_cropped: Whether to prefer cropped embeddings when available
 
         Returns:
             List of matching disc records with similarity scores
         """
         conn = self.get_connection()
 
+        # Determine which embedding to use for search
+        if prefer_cropped and query_cropped_embedding is not None:
+            # Use cropped embedding, fallback to original for images without crops
+            query_embedding = query_cropped_embedding
+            embedding_column = "COALESCE(di.cropped_embedding, di.original_embedding)"
+            match_type_expr = "CASE WHEN di.cropped_embedding IS NOT NULL THEN 'cropped' ELSE 'original' END"
+        elif query_original_embedding is not None:
+            # Use original embedding
+            query_embedding = query_original_embedding
+            embedding_column = "di.original_embedding"
+            match_type_expr = "'original'"
+        else:
+            raise ValueError("At least one of query_original_embedding or query_cropped_embedding must be provided")
+
         # Convert numpy array to list for PostgreSQL
         embedding_list = query_embedding.tolist()
 
         # Build query
-        query = """
+        query = f"""
             SELECT
                 d.id as disc_id,
                 d.owner_name,
@@ -151,12 +189,17 @@ class DatabaseService:
                 d.location,
                 d.registered_date,
                 d.stolen_date,
+                di.id as image_id,
                 di.image_url,
                 di.image_path,
-                1 - (di.embedding <=> %s::vector) as similarity
+                di.cropped_image_path,
+                di.border_info,
+                1 - ({embedding_column} <=> %s::vector) as similarity,
+                {match_type_expr} as match_type
             FROM disc_images di
             JOIN discs d ON di.disc_id = d.id
             WHERE di.model_name = %s
+              AND {embedding_column} IS NOT NULL
         """
 
         params = [embedding_list, model_name]
@@ -165,8 +208,8 @@ class DatabaseService:
             query += " AND d.status = %s"
             params.append(status_filter)
 
-        query += """
-            ORDER BY di.embedding <=> %s::vector
+        query += f"""
+            ORDER BY {embedding_column} <=> %s::vector
             LIMIT %s
         """
         params.extend([embedding_list, top_k])
@@ -239,13 +282,15 @@ class DatabaseService:
             disc_id: Disc ID
 
         Returns:
-            List of image records
+            List of image records with border detection and embedding info
         """
         conn = self.get_connection()
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
                 """
-                SELECT id, disc_id, image_url, image_path, model_name, created_at
+                SELECT
+                    id, disc_id, image_url, image_path, cropped_image_path,
+                    model_name, border_info, preprocessing_metadata, created_at
                 FROM disc_images
                 WHERE disc_id = %s
                 ORDER BY created_at DESC
