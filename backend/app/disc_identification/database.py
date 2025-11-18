@@ -352,3 +352,71 @@ class DatabaseService:
             if deleted:
                 logger.info(f"Deleted disc with ID: {disc_id}")
             return deleted
+
+    def update_disc_image_border(
+        self,
+        image_id: int,
+        border_info: Dict,
+        cropped_embedding: Optional[np.ndarray] = None,
+        cropped_image_path: Optional[str] = None,
+        preprocessing_metadata: Optional[Dict] = None
+    ) -> bool:
+        """
+        Update border info and embeddings for a disc image.
+
+        Args:
+            image_id: Disc image ID
+            border_info: New border information
+            cropped_embedding: New cropped embedding
+            cropped_image_path: Path to new cropped image
+            preprocessing_metadata: Updated metadata
+
+        Returns:
+            True if updated successfully
+        """
+        conn = self.get_connection()
+        with conn.cursor() as cur:
+            # Convert numpy array to list for PostgreSQL
+            cropped_emb_list = cropped_embedding.tolist() if cropped_embedding is not None else None
+
+            cur.execute(
+                """
+                UPDATE disc_images
+                SET border_info = %s,
+                    cropped_embedding = %s,
+                    cropped_image_path = %s,
+                    preprocessing_metadata = %s
+                WHERE id = %s
+                """,
+                (border_info, cropped_emb_list, cropped_image_path, preprocessing_metadata, image_id)
+            )
+            conn.commit()
+            updated = cur.rowcount > 0
+            if updated:
+                logger.info(f"Updated border info for disc_image ID: {image_id}")
+            return updated
+
+    def get_disc_image_by_disc_id(self, disc_id: int) -> Optional[Dict]:
+        """
+        Get the first/primary image for a disc.
+
+        Args:
+            disc_id: Disc ID
+
+        Returns:
+            Disc image record or None
+        """
+        conn = self.get_connection()
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT id, disc_id, image_url, image_path, model_name
+                FROM disc_images
+                WHERE disc_id = %s
+                ORDER BY created_at ASC
+                LIMIT 1
+                """,
+                (disc_id,)
+            )
+            result = cur.fetchone()
+            return dict(result) if result else None

@@ -286,3 +286,87 @@ class BorderService:
             return False
 
         return True
+
+    def apply_border(
+        self,
+        image: Image.Image,
+        border_info: Dict,
+        disc_id: Optional[int] = None,
+        save_cropped: bool = True,
+        padding: int = 0
+    ) -> BorderDetectionResult:
+        """
+        Apply a manual border (from user editing) and create cropped image.
+
+        Similar to detect_and_process but uses provided border_info instead
+        of running detection.
+
+        Args:
+            image: PIL Image to process
+            border_info: Border information (type, center, radius/axes, angle)
+            disc_id: Optional disc ID for saving cropped image
+            save_cropped: Whether to save the cropped image to disk
+            padding: Optional padding around border (pixels)
+
+        Returns:
+            BorderDetectionResult with cropped image and processing info
+        """
+        logger.info(f"Applying manual border for disc_id={disc_id}")
+
+        # Manually set confidence to 1.0 since this is user-provided
+        confidence = border_info.get('confidence', 1.0)
+
+        # Create cropped image
+        try:
+            cropped_image = self.processor.create_cropped_image(
+                image,
+                border_info,
+                padding=padding
+            )
+            logger.info(f"Created cropped image from manual border: {cropped_image.size}")
+
+        except Exception as e:
+            logger.error(f"Failed to create cropped image from manual border: {e}")
+            return BorderDetectionResult(
+                detected=True,
+                border_info=border_info,
+                confidence=confidence,
+                preprocessing_metadata={
+                    'timestamp': datetime.utcnow().isoformat(),
+                    'method': 'manual_border',
+                    'padding': padding,
+                    'crop_error': str(e)
+                }
+            )
+
+        # Save cropped image (if requested and disc_id provided)
+        cropped_image_path = None
+        if save_cropped and disc_id is not None:
+            try:
+                cropped_image_path = self._save_cropped_image(
+                    cropped_image,
+                    disc_id
+                )
+                logger.info(f"Saved cropped image to {cropped_image_path}")
+
+            except Exception as e:
+                logger.error(f"Failed to save cropped image: {e}")
+
+        # Build result
+        result = BorderDetectionResult(
+            detected=True,
+            border_info=border_info,
+            confidence=confidence,
+            cropped_image=cropped_image,
+            cropped_image_path=cropped_image_path,
+            preprocessing_metadata={
+                'timestamp': datetime.utcnow().isoformat(),
+                'method': 'manual_border',
+                'border_type': border_info['type'],
+                'padding': padding,
+                'cropped_size': cropped_image.size,
+                'saved': cropped_image_path is not None
+            }
+        )
+
+        return result
