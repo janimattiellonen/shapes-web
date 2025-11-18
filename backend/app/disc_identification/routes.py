@@ -567,6 +567,18 @@ class DiscCancelResponse(BaseModel):
     message: str
 
 
+class BorderUpdateRequest(BaseModel):
+    """Request to update disc border."""
+    border: Dict
+
+
+class BorderUpdateResponse(BaseModel):
+    """Response for border update."""
+    disc_id: int
+    border_info: Dict
+    message: str
+
+
 @upload_router.post("/upload", response_model=DiscUploadResponse)
 async def upload_disc(image: UploadFile = File(...)):
     """
@@ -777,4 +789,112 @@ async def cancel_disc(disc_id: int):
         raise HTTPException(
             status_code=500,
             detail=f"Error cancelling disc: {str(e)}"
+        )
+
+
+@upload_router.put("/{disc_id}/border", response_model=BorderUpdateResponse)
+async def update_disc_border(disc_id: int, request: BorderUpdateRequest):
+    """
+    Update disc border with manual adjustments and regenerate embeddings.
+
+    This endpoint:
+    1. Loads the original image
+    2. Applies the new border
+    3. Generates cropped image
+    4. Generates embeddings for the cropped region
+    5. Updates the database
+
+    Args:
+        disc_id: Disc ID
+        request: New border information
+
+    Returns:
+        BorderUpdateResponse with updated border info
+    """
+    try:
+        matcher = get_disc_matcher()
+
+        # Check if disc exists and is PENDING
+        disc_info = matcher.database.get_disc_by_id(disc_id)
+        if not disc_info:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Disc with ID {disc_id} not found"
+            )
+
+        if disc_info.get('upload_status') != 'PENDING':
+            raise HTTPException(
+                status_code=400,
+                detail=f"Can only update border for discs with PENDING status"
+            )
+
+        # Get the disc's image record
+        disc_image = matcher.database.get_disc_image_by_disc_id(disc_id)
+        if not disc_image:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No image found for disc {disc_id}"
+            )
+
+        # Load original image from filesystem
+        image_path = disc_image.get('image_path')
+        if not image_path or not os.path.exists(image_path):
+            raise HTTPException(
+                status_code=404,
+                detail=f"Image file not found for disc {disc_id}"
+            )
+
+        logger.info(f"Loading image from {image_path}")
+        pil_image = Image.open(image_path)
+
+        # Apply the new border
+        border_result = matcher.border_service.apply_border(
+            image=pil_image,
+            border_info=request.border,
+            disc_id=disc_id,
+            save_cropped=Config.STORE_CROPPED_IMAGES
+        )
+
+        if not border_result.detected or not border_result.cropped_image:
+            raise HTTPException(
+                status_code=400,
+                detail="Failed to apply border and create cropped image"
+            )
+
+        # Generate embeddings
+        cropped_embedding = None
+        if matcher.border_service.should_use_cropped(border_result):
+            logger.info(f"Generating embedding for manually adjusted border on disc {disc_id}")
+            cropped_embedding = matcher.encoder.encode(border_result.cropped_image)
+
+        # Update database
+        success = matcher.database.update_disc_image_border(
+            image_id=disc_image['id'],
+            border_info=request.border,
+            cropped_embedding=cropped_embedding,
+            cropped_image_path=border_result.cropped_image_path,
+            preprocessing_metadata=border_result.preprocessing_metadata
+        )
+
+        if not success:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to update border info for disc {disc_id}"
+            )
+
+        logger.info(f"Border updated successfully for disc {disc_id}")
+
+        return BorderUpdateResponse(
+            disc_id=disc_id,
+            border_info=request.border,
+            message="Border updated successfully"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating border: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error updating border: {str(e)}"
         )
