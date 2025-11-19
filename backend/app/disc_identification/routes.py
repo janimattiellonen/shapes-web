@@ -49,6 +49,10 @@ class DiscMatchResult(BaseModel):
     status: str
     location: Optional[str]
     image_url: str
+    image_path: Optional[str]
+    cropped_image_path: Optional[str]
+    border_info: Optional[Dict]
+    match_type: Optional[str]
     similarity: float
 
 
@@ -217,6 +221,10 @@ async def search_disc(
                 status=r['status'],
                 location=r['location'],
                 image_url=r['image_url'],
+                image_path=r.get('image_path'),
+                cropped_image_path=r.get('cropped_image_path'),
+                border_info=r.get('border_info'),
+                match_type=r.get('match_type'),
                 similarity=float(r['similarity'])
             )
             for r in results
