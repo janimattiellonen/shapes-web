@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { BorderCanvas } from '../components/BorderCanvas'
 import '../components/BorderDetection.css'
 
 interface BorderCircle {
@@ -550,12 +551,6 @@ export default function NewDiscPage() {
   }
 
   // Get cursor style based on interaction state and hover
-  const getCursor = (): string => {
-    if (isDraggingBorder) return 'move'
-    if (isResizing) return 'ns-resize'
-    return 'default'
-  }
-
   // Check if mouse is hovering over border (for cursor feedback)
   const handleCanvasMouseMoveHover = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!currentBorder || !canvasRef.current || isDraggingBorder || isResizing) return
@@ -579,106 +574,6 @@ export default function NewDiscPage() {
     // Default cursor
     canvasRef.current.style.cursor = 'default'
   }
-
-  // Draw border on canvas
-  useEffect(() => {
-    if (!currentBorder || !showBorder) {
-      if (canvasRef.current) {
-        const ctx = canvasRef.current.getContext('2d')
-        if (ctx) {
-          ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height)
-        }
-      }
-      return
-    }
-
-    const image = imageRef.current
-    const canvas = canvasRef.current
-
-    if (!image || !canvas) return
-
-    const drawBorder = () => {
-      const { width, height } = image.getBoundingClientRect()
-      canvas.width = width
-      canvas.height = height
-
-      const ctx = canvas.getContext('2d')
-      if (!ctx) return
-
-      ctx.clearRect(0, 0, width, height)
-
-      const border = currentBorder
-
-      // Calculate scale factors
-      const scaleX = width / image.naturalWidth
-      const scaleY = height / image.naturalHeight
-
-      // Draw border with selection highlight
-      ctx.strokeStyle = isSelected ? '#22c55e' : '#646cff'
-      ctx.lineWidth = isSelected ? 4 : 3
-
-      if (border.type === 'circle') {
-        const centerX = border.center.x * scaleX
-        const centerY = border.center.y * scaleY
-        const radius = border.radius * Math.min(scaleX, scaleY)
-
-        ctx.beginPath()
-        ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI)
-        ctx.stroke()
-
-        // Draw center point
-        ctx.fillStyle = isSelected ? '#22c55e' : '#646cff'
-        ctx.beginPath()
-        ctx.arc(centerX, centerY, 5, 0, 2 * Math.PI)
-        ctx.fill()
-
-        // Draw resize handle if in resize mode
-        if (isResizeMode && isSelected) {
-          ctx.fillStyle = '#f59e0b'
-          ctx.beginPath()
-          ctx.arc(centerX, centerY, 10, 0, 2 * Math.PI)
-          ctx.fill()
-          ctx.strokeStyle = '#fff'
-          ctx.lineWidth = 2
-          ctx.stroke()
-        }
-      } else {
-        const centerX = border.center.x * scaleX
-        const centerY = border.center.y * scaleY
-        const radiusX = border.axes.major * scaleX
-        const radiusY = border.axes.minor * scaleY
-        const rotation = (border.angle * Math.PI) / 180
-
-        ctx.beginPath()
-        ctx.ellipse(centerX, centerY, radiusX, radiusY, rotation, 0, 2 * Math.PI)
-        ctx.stroke()
-
-        // Draw center point
-        ctx.fillStyle = isSelected ? '#22c55e' : '#646cff'
-        ctx.beginPath()
-        ctx.arc(centerX, centerY, 5, 0, 2 * Math.PI)
-        ctx.fill()
-
-        // Draw resize handle if in resize mode
-        if (isResizeMode && isSelected) {
-          ctx.fillStyle = '#f59e0b'
-          ctx.beginPath()
-          ctx.arc(centerX, centerY, 10, 0, 2 * Math.PI)
-          ctx.fill()
-          ctx.strokeStyle = '#fff'
-          ctx.lineWidth = 2
-          ctx.stroke()
-        }
-      }
-    }
-
-    if (image.complete) {
-      drawBorder()
-    } else {
-      image.addEventListener('load', drawBorder)
-      return () => image.removeEventListener('load', drawBorder)
-    }
-  }, [currentBorder, showBorder, isSelected, isResizeMode])
 
   // Button enabled states
   const addBorderEnabled = uploadResult && !currentBorder
@@ -732,14 +627,18 @@ export default function NewDiscPage() {
                 setImageDimensions({ width: img.naturalWidth, height: img.naturalHeight })
               }}
             />
-            <canvas
-              ref={canvasRef}
-              className={`border-canvas ${isDraggingBorder ? 'dragging' : ''} ${isResizing ? 'resizing' : ''}`}
-              style={{ cursor: getCursor() }}
+            <BorderCanvas
+              border={currentBorder}
+              imageRef={imageRef}
+              canvasRef={canvasRef}
+              showBorder={showBorder}
+              isSelected={isSelected}
+              isResizeMode={isResizeMode}
+              interactive={true}
               onMouseDown={handleCanvasMouseDown}
               onMouseMove={handleCanvasMouseMove}
               onMouseUp={handleCanvasMouseUp}
-              onMouseLeave={handleCanvasMouseUp}
+              className={`${isDraggingBorder ? 'dragging' : ''} ${isResizing ? 'resizing' : ''}`}
             />
           </div>
         )}

@@ -8,6 +8,7 @@ services:
       - "8000:8000"
     volumes:
       - ./backend/app:/app/app
+      - ./backend/uploads:/app/uploads
     environment:
       - PYTHONUNBUFFERED=1
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/disc_identification

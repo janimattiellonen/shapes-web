@@ -380,3 +380,73 @@
 .border-canvas.resizing {
   cursor: ns-resize !important;
 }
+
+/* Discs grid layout */
+.discs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+  gap: 2rem;
+  margin-top: 2rem;
+}
+
+.disc-card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.disc-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+.disc-image-container {
+  position: relative;
+}
+
+.disc-info {
+  padding: 1.5rem;
+}
+
+.disc-info h3 {
+  margin: 0 0 1rem 0;
+  color: #333;
+  font-size: 1.25rem;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.info-row:last-child {
+  border-bottom: none;
+}
+
+.info-label {
+  font-weight: 600;
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.info-value {
+  color: #333;
+  font-size: 0.95rem;
+  text-align: right;
+  max-width: 60%;
+  word-wrap: break-word;
+}
+
+.status-badge {
+  padding: 0.25rem 0.75rem;
+  background: #22c55e;
+  color: white;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
