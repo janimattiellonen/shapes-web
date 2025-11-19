@@ -4,6 +4,7 @@ import ShapeDetectionPage from '../pages/ShapeDetectionPage'
 import BorderDetectionPage from '../pages/BorderDetectionPage'
 import NewDiscPage from '../pages/NewDiscPage'
 import DiscsPage from '../pages/DiscsPage'
+import SearchDisc from '../pages/SearchDisc'
 
 export const routes: RouteObject[] = [
   {
@@ -24,6 +25,10 @@ export const routes: RouteObject[] = [
       {
         path: '/discs/new',
         element: <NewDiscPage />
+      },
+      {
+        path: '/discs/search',
+        element: <SearchDisc />
       }
     ]
   }
