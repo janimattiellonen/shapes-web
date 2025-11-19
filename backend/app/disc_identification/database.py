@@ -1,6 +1,6 @@
 """Database operations for disc identification."""
 import psycopg2
-from psycopg2.extras import RealDictCursor, execute_values
+from psycopg2.extras import RealDictCursor, execute_values, Json
 import numpy as np
 from typing import List, Dict, Optional, Tuple
 from datetime import datetime
@@ -125,7 +125,9 @@ class DatabaseService:
                 (
                     disc_id, image_url, image_path, model_name,
                     original_emb_list, cropped_emb_list,
-                    border_info, cropped_image_path, preprocessing_metadata
+                    Json(border_info) if border_info is not None else None,
+                    cropped_image_path,
+                    Json(preprocessing_metadata) if preprocessing_metadata is not None else None
                 )
             )
             image_id = cur.fetchone()[0]
@@ -388,7 +390,13 @@ class DatabaseService:
                     preprocessing_metadata = %s
                 WHERE id = %s
                 """,
-                (border_info, cropped_emb_list, cropped_image_path, preprocessing_metadata, image_id)
+                (
+                    Json(border_info) if border_info is not None else None,
+                    cropped_emb_list,
+                    cropped_image_path,
+                    Json(preprocessing_metadata) if preprocessing_metadata is not None else None,
+                    image_id
+                )
             )
             conn.commit()
             updated = cur.rowcount > 0
@@ -420,3 +428,39 @@ class DatabaseService:
             )
             result = cur.fetchone()
             return dict(result) if result else None
+
+    def get_all_successful_discs(self) -> List[Dict]:
+        """
+        Get all discs with upload_status='SUCCESS' along with their images.
+
+        Returns:
+            List of disc records with image information
+        """
+        conn = self.get_connection()
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT
+                    d.id as disc_id,
+                    d.owner_name,
+                    d.owner_contact,
+                    d.disc_model,
+                    d.disc_color,
+                    d.notes,
+                    d.status,
+                    d.location,
+                    d.registered_date,
+                    di.id as image_id,
+                    di.image_url,
+                    di.image_path,
+                    di.border_info,
+                    di.cropped_image_path,
+                    di.created_at
+                FROM discs d
+                LEFT JOIN disc_images di ON d.id = di.disc_id
+                WHERE d.upload_status = 'SUCCESS'
+                ORDER BY d.registered_date DESC
+                """
+            )
+            results = cur.fetchall()
+            return [dict(row) for row in results]

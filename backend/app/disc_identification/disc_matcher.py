@@ -50,7 +50,8 @@ class DiscMatcher:
         disc_color: Optional[str] = None,
         notes: Optional[str] = None,
         status: str = 'registered',
-        location: Optional[str] = None
+        location: Optional[str] = None,
+        upload_status: str = 'SUCCESS'
     ) -> Dict:
         """
         Add a disc to the database with its image.
@@ -82,7 +83,8 @@ class DiscMatcher:
             disc_color=disc_color,
             notes=notes,
             status=status,
-            location=location
+            location=location,
+            upload_status=upload_status
         )
 
         # Save original image to storage
@@ -134,9 +136,13 @@ class DiscMatcher:
                 logger.info(f"No border detected for disc {disc_id}, using original only")
 
         # Step 3: Add image with embeddings to database
+        # Construct API URL from filesystem path
+        image_filename = os.path.basename(image_path)
+        image_url = f"/discs/identification/{disc_id}/images/{image_filename}"
+
         image_id = self.database.add_disc_image(
             disc_id=disc_id,
-            image_url=image_path,
+            image_url=image_url,
             model_name=model_name,
             image_path=image_path,
             original_embedding=original_embedding,
@@ -294,9 +300,13 @@ class DiscMatcher:
                         original_embedding = None
 
         # Add to database with embeddings
+        # Construct API URL from filesystem path
+        image_filename = os.path.basename(image_path)
+        image_url = f"/discs/identification/{disc_id}/images/{image_filename}"
+
         image_id = self.database.add_disc_image(
             disc_id=disc_id,
-            image_url=image_path,
+            image_url=image_url,
             model_name=model_name,
             image_path=image_path,
             original_embedding=original_embedding,

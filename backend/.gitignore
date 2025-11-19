@@ -34,3 +34,7 @@ htmlcov/
 build/
 dist/
 *.egg-info/
+
+# Uploaded disc images
+uploads/
+app/uploads/

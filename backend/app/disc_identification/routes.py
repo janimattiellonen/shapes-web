@@ -579,6 +579,77 @@ class BorderUpdateResponse(BaseModel):
     message: str
 
 
+class DiscListItem(BaseModel):
+    """Single disc in the list response."""
+    disc_id: int
+    owner_name: str
+    owner_contact: str
+    disc_model: Optional[str]
+    disc_color: Optional[str]
+    notes: Optional[str]
+    status: str
+    location: Optional[str]
+    registered_date: str
+    image_id: Optional[int]
+    image_url: Optional[str]
+    image_path: Optional[str]
+    border_info: Optional[Dict]
+    cropped_image_path: Optional[str]
+    created_at: Optional[str]
+
+
+class DiscListResponse(BaseModel):
+    """Response for disc list."""
+    discs: List[DiscListItem]
+    total: int
+
+
+@upload_router.get("/list", response_model=DiscListResponse)
+async def list_discs():
+    """
+    Get all discs with upload_status='SUCCESS'.
+
+    Returns:
+        DiscListResponse with list of all successful disc uploads
+    """
+    try:
+        matcher = get_disc_matcher()
+        discs = matcher.database.get_all_successful_discs()
+
+        # Convert to response format
+        disc_items = []
+        for disc in discs:
+            disc_items.append(DiscListItem(
+                disc_id=disc['disc_id'],
+                owner_name=disc['owner_name'],
+                owner_contact=disc['owner_contact'],
+                disc_model=disc.get('disc_model'),
+                disc_color=disc.get('disc_color'),
+                notes=disc.get('notes'),
+                status=disc['status'],
+                location=disc.get('location'),
+                registered_date=disc['registered_date'].isoformat() if disc.get('registered_date') else None,
+                image_id=disc.get('image_id'),
+                image_url=disc.get('image_url'),
+                image_path=disc.get('image_path'),
+                border_info=disc.get('border_info'),
+                cropped_image_path=disc.get('cropped_image_path'),
+                created_at=disc['created_at'].isoformat() if disc.get('created_at') else None
+            ))
+
+        return DiscListResponse(
+            discs=disc_items,
+            total=len(disc_items)
+        )
+
+    except Exception as e:
+        logger.error(f"Error listing discs: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error listing discs: {str(e)}"
+        )
+
+
 @upload_router.post("/upload", response_model=DiscUploadResponse)
 async def upload_disc(image: UploadFile = File(...)):
     """
@@ -615,32 +686,19 @@ async def upload_disc(image: UploadFile = File(...)):
         # Get disc matcher
         matcher = get_disc_matcher()
 
-        # Create disc record with PENDING status
-        # Using placeholder values since we're not collecting owner info yet
-        disc_id = matcher.database.add_disc(
+        # Add disc with PENDING status
+        # This creates both disc and disc_images records, generates embeddings
+        result = matcher.add_disc(
+            image=pil_image,
             owner_name="Pending",
             owner_contact="pending@example.com",
-            upload_status='PENDING',
-            status='registered'
+            image_filename=image.filename or "disc.jpg",
+            status='registered',
+            upload_status='PENDING'
         )
 
-        # Save image to storage
-        upload_dir = Config.UPLOAD_DIR
-        os.makedirs(upload_dir, exist_ok=True)
-        disc_dir = os.path.join(upload_dir, str(disc_id))
-        os.makedirs(disc_dir, exist_ok=True)
-
-        # Save original image
-        image_filename = image.filename or "disc.jpg"
-        image_path = os.path.join(disc_dir, image_filename)
-        pil_image.save(image_path, quality=95)
-
-        logger.info(f"Saved image for disc {disc_id} to {image_path}")
-
-        # Detect border
-        detector = DiscBorderDetector()
-        border_info = detector.detect_border(pil_image)
-
+        disc_id = result['disc_id']
+        border_info = result.get('border_info')
         border_detected = border_info is not None
 
         if border_detected:
@@ -651,6 +709,7 @@ async def upload_disc(image: UploadFile = File(...)):
             message = "No border detected. You can still save this disc."
 
         # Construct image URL
+        image_filename = image.filename or "disc.jpg"
         image_url = f"/discs/identification/{disc_id}/images/{image_filename}"
 
         return DiscUploadResponse(
