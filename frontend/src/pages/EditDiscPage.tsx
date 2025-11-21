@@ -112,11 +112,10 @@ export default function EditDiscPage() {
   // Get the first image from the images array
   const discImage = disc.images?.[0]
 
-  // Construct image URLs
+  // Construct image URLs - for editing, always use original image
+  // (border coordinates are relative to the original, not the cropped version)
   const baseUrl = 'http://localhost:8000'
   const imageUrl = discImage?.image_url ? `${baseUrl}${discImage.image_url}` : ''
-  // Original image path - the uncropped version
-  const originalImageUrl = discImage?.image_path ? `${baseUrl}/uploads/discs/${discId}/${discImage.image_path.split('/').pop()}` : undefined
 
   return (
     <div className="border-detection-container">
@@ -129,7 +128,6 @@ export default function EditDiscPage() {
           initialBorder={discImage?.border_info}
           discId={discId}
           mode="edit"
-          originalImageUrl={originalImageUrl}
           onSaveBorder={handleSaveBorder}
           onSaveDisc={handleSaveDisc}
           onCancel={handleCancel}

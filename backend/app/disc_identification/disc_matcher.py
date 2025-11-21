@@ -163,7 +163,8 @@ class DiscMatcher:
             'image_id': image_id,
             'model_used': model_name,
             'border_detected': border_info is not None,
-            'border_confidence': border_info.get('confidence', 0) if border_info else 0
+            'border_confidence': border_info.get('confidence', 0) if border_info else 0,
+            'border_info': border_info
         }
 
     def find_matches(
@@ -377,9 +378,16 @@ class DiscMatcher:
         disc_dir = os.path.join(upload_dir, str(disc_id))
         os.makedirs(disc_dir, exist_ok=True)
 
-        # Save image
+        # Save image without EXIF orientation (image is already oriented correctly)
         image_path = os.path.join(disc_dir, filename)
-        image.save(image_path, quality=95)
+        # Convert to RGB if needed (some formats like PNG don't support quality param)
+        if image.mode in ('RGBA', 'LA', 'P'):
+            rgb_image = Image.new('RGB', image.size, (255, 255, 255))
+            if image.mode == 'P':
+                image = image.convert('RGBA')
+            rgb_image.paste(image, mask=image.split()[-1] if image.mode in ('RGBA', 'LA') else None)
+            image = rgb_image
+        image.save(image_path, 'JPEG', quality=95, exif=b'')
 
         logger.info(f"Saved image to {image_path}")
         return image_path
