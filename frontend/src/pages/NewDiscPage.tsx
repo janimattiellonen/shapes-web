@@ -172,12 +172,12 @@ export default function NewDiscPage() {
     if (!canvas || !image) return { x: 0, y: 0 }
 
     const rect = canvas.getBoundingClientRect()
-    const scaleX = image.naturalWidth / rect.width
-    const scaleY = image.naturalHeight / rect.height
+    // Use uniform scaling to match BorderCanvas rendering
+    const scale = Math.max(image.naturalWidth / rect.width, image.naturalHeight / rect.height)
 
     return {
-      x: canvasX * scaleX,
-      y: canvasY * scaleY
+      x: canvasX * scale,
+      y: canvasY * scale
     }
   }
 
@@ -189,20 +189,18 @@ export default function NewDiscPage() {
     if (!image) return false
 
     const rect = image.getBoundingClientRect()
-    const scaleX = rect.width / image.naturalWidth
-    const scaleY = rect.height / image.naturalHeight
+    // Use uniform scaling to match BorderCanvas rendering
+    const scale = Math.min(rect.width / image.naturalWidth, rect.height / image.naturalHeight)
 
     // Convert border to display coordinates
-    const centerX = border.center.x * scaleX
-    const centerY = border.center.y * scaleY
+    const centerX = border.center.x * scale
+    const centerY = border.center.y * scale
 
     // Tolerance in display pixels (easier to click)
     const tolerance = 15
 
     if (border.type === 'circle') {
-      // For circles, use uniform scaling (same as rendering)
-      const displayScale = Math.min(scaleX, scaleY)
-      const radius = border.radius * displayScale
+      const radius = border.radius * scale
 
       const distance = Math.sqrt(
         Math.pow(canvasX - centerX, 2) + Math.pow(canvasY - centerY, 2)
@@ -216,9 +214,9 @@ export default function NewDiscPage() {
         return distance <= radius + tolerance
       }
     } else {
-      // For ellipse
-      const radiusX = border.axes.major * scaleX
-      const radiusY = border.axes.minor * scaleY
+      // For ellipse - use uniform scaling
+      const radiusX = border.axes.major * scale
+      const radiusY = border.axes.minor * scale
       const angle = border.angle * Math.PI / 180
 
       // Translate to origin
@@ -253,11 +251,11 @@ export default function NewDiscPage() {
     if (!image) return false
 
     const rect = image.getBoundingClientRect()
-    const scaleX = rect.width / image.naturalWidth
-    const scaleY = rect.height / image.naturalHeight
+    // Use uniform scaling to match BorderCanvas rendering
+    const scale = Math.min(rect.width / image.naturalWidth, rect.height / image.naturalHeight)
 
-    const centerX = border.center.x * scaleX
-    const centerY = border.center.y * scaleY
+    const centerX = border.center.x * scale
+    const centerY = border.center.y * scale
 
     const distance = Math.sqrt(
       Math.pow(canvasX - centerX, 2) + Math.pow(canvasY - centerY, 2)
@@ -452,6 +450,12 @@ export default function NewDiscPage() {
   const handleSaveBorder = async () => {
     if (!uploadResult || !currentBorder) return
 
+    // Validate border is within image bounds (safety net)
+    if (!isBorderWithinBounds(currentBorder)) {
+      setError('Border extends outside image boundaries. Please adjust the border before saving.')
+      return
+    }
+
     setIsSavingBorder(true)
     setError('')
 
@@ -481,6 +485,22 @@ export default function NewDiscPage() {
     }
   }
 
+  // Helper: Check if border is within image bounds
+  const isBorderWithinBounds = (border: BorderInfo): boolean => {
+    if (!imageDimensions) return false
+
+    const { x, y } = border.center
+    if (border.type === 'circle') {
+      const r = border.radius
+      return x - r >= 0 && y - r >= 0 && x + r <= imageDimensions.width && y + r <= imageDimensions.height
+    } else {
+      const rx = border.axes.major
+      const ry = border.axes.minor
+      const maxR = Math.max(rx, ry)
+      return x - maxR >= 0 && y - maxR >= 0 && x + maxR <= imageDimensions.width && y + maxR <= imageDimensions.height
+    }
+  }
+
   const handleSaveDisc = async () => {
     if (!uploadResult) return
 
@@ -488,6 +508,32 @@ export default function NewDiscPage() {
     if (!currentBorder) {
       const confirmed = window.confirm('Do you really want to save without adding a border?')
       if (!confirmed) return
+    }
+
+    // Validate border is within image bounds (safety net)
+    if (currentBorder && !isBorderWithinBounds(currentBorder)) {
+      setError('Border extends outside image boundaries. Please adjust the border before saving.')
+      return
+    }
+
+    // Auto-save border if there are unsaved changes
+    if (currentBorder && hasChanges) {
+      try {
+        const borderResponse = await fetch(`http://localhost:8000/discs/${uploadResult.disc_id}/border`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ border: currentBorder })
+        })
+        if (!borderResponse.ok) {
+          const errorData = await borderResponse.json()
+          throw new Error(errorData.detail || 'Failed to save border')
+        }
+        setOriginalBorder({ ...currentBorder })
+        setHasChanges(false)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to save border before saving disc')
+        return
+      }
     }
 
     setIsSaving(true)

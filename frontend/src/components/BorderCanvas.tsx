@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react'
+import { useRef, useEffect, useState } from 'react'
 
 interface BorderCircle {
   type: 'circle'
@@ -46,6 +46,38 @@ export function BorderCanvas({
 }: BorderCanvasProps) {
   const internalCanvasRef = useRef<HTMLCanvasElement>(null)
   const canvasRef = externalCanvasRef || internalCanvasRef
+  const [canvasStyle, setCanvasStyle] = useState<{ top: number; left: number; width: number; height: number } | null>(null)
+
+  // Update canvas position to match image
+  useEffect(() => {
+    const updateCanvasPosition = () => {
+      const image = imageRef.current
+      if (!image) return
+
+      const imageRect = image.getBoundingClientRect()
+      const containerRect = image.parentElement?.getBoundingClientRect()
+
+      if (containerRect) {
+        setCanvasStyle({
+          top: imageRect.top - containerRect.top,
+          left: imageRect.left - containerRect.left,
+          width: imageRect.width,
+          height: imageRect.height
+        })
+      }
+    }
+
+    const image = imageRef.current
+    if (image?.complete) {
+      updateCanvasPosition()
+    } else if (image) {
+      image.addEventListener('load', updateCanvasPosition)
+      return () => image.removeEventListener('load', updateCanvasPosition)
+    }
+
+    window.addEventListener('resize', updateCanvasPosition)
+    return () => window.removeEventListener('resize', updateCanvasPosition)
+  }, [imageRef])
 
   // Draw border on canvas
   useEffect(() => {
@@ -83,9 +115,11 @@ export function BorderCanvas({
       ctx.lineWidth = interactive && isSelected ? 4 : 3
 
       if (border.type === 'circle') {
-        const centerX = border.center.x * scaleX
-        const centerY = border.center.y * scaleY
-        const radius = border.radius * Math.min(scaleX, scaleY)
+        // Use uniform scaling to maintain circle shape
+        const scale = Math.min(scaleX, scaleY)
+        const centerX = border.center.x * scale
+        const centerY = border.center.y * scale
+        const radius = border.radius * scale
 
         ctx.beginPath()
         ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI)
@@ -164,10 +198,10 @@ export function BorderCanvas({
       onMouseUp={interactive ? onMouseUp : undefined}
       style={{
         position: 'absolute',
-        top: 0,
-        left: 0,
-        width: '100%',
-        height: '100%',
+        top: canvasStyle?.top ?? 0,
+        left: canvasStyle?.left ?? 0,
+        width: canvasStyle?.width ?? '100%',
+        height: canvasStyle?.height ?? '100%',
         pointerEvents: interactive ? 'auto' : 'none'
       }}
     />
