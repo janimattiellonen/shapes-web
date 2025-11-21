@@ -106,7 +106,11 @@ export default function DiscsPage() {
 
       <div className="discs-grid">
         {discs.map((disc) => (
-          <DiscCard key={disc.disc_id} disc={disc} />
+          <DiscCard
+            key={disc.disc_id}
+            disc={disc}
+            onDelete={(discId) => setDiscs(discs.filter(d => d.disc_id !== discId))}
+          />
         ))}
       </div>
     </div>
@@ -115,16 +119,39 @@ export default function DiscsPage() {
 
 interface DiscCardProps {
   disc: Disc
+  onDelete: (discId: number) => void
 }
 
-function DiscCard({ disc }: DiscCardProps) {
+function DiscCard({ disc, onDelete }: DiscCardProps) {
   const imageRef = useRef<HTMLImageElement>(null)
   const [showBorder, setShowBorder] = useState<boolean>(true)
   const [imageError, setImageError] = useState<boolean>(false)
+  const [isDeleting, setIsDeleting] = useState<boolean>(false)
 
   const imageUrl = disc.image_url ? `http://localhost:8000${disc.image_url}` : null
 
-  console.log('DiscCard - disc_id:', disc.disc_id, 'image_url:', disc.image_url, 'full URL:', imageUrl)
+  const handleDelete = async () => {
+    if (!window.confirm('Do you want to delete this image?')) return
+
+    setIsDeleting(true)
+    try {
+      const response = await fetch(`http://localhost:8000/discs/${disc.disc_id}`, {
+        method: 'DELETE',
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.detail || 'Failed to delete disc')
+      }
+
+      onDelete(disc.disc_id)
+    } catch (err) {
+      console.error('Error deleting disc:', err)
+      alert(err instanceof Error ? err.message : 'Failed to delete disc')
+    } finally {
+      setIsDeleting(false)
+    }
+  }
 
   return (
     <div className="disc-card">
@@ -221,6 +248,15 @@ function DiscCard({ disc }: DiscCardProps) {
           <span className="info-value">
             {new Date(disc.registered_date).toLocaleDateString()}
           </span>
+        </div>
+        <div className="action-buttons" style={{ marginTop: '1rem' }}>
+          <button
+            onClick={handleDelete}
+            disabled={isDeleting}
+            className="cancel-button"
+          >
+            {isDeleting ? 'Deleting...' : 'Delete Image'}
+          </button>
         </div>
       </div>
     </div>
