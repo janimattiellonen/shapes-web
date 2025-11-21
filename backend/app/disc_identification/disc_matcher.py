@@ -163,7 +163,8 @@ class DiscMatcher:
             'image_id': image_id,
             'model_used': model_name,
             'border_detected': border_info is not None,
-            'border_confidence': border_info.get('confidence', 0) if border_info else 0
+            'border_confidence': border_info.get('confidence', 0) if border_info else 0,
+            'border_info': border_info
         }
 
     def find_matches(
