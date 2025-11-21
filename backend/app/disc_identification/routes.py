@@ -939,10 +939,11 @@ async def update_disc_border(disc_id: int, request: BorderUpdateRequest):
                 detail=f"Disc with ID {disc_id} not found"
             )
 
-        if disc_info.get('upload_status') != 'PENDING':
+        # Allow border updates for both PENDING and SUCCESS (confirmed) discs
+        if disc_info.get('upload_status') not in ('PENDING', 'SUCCESS'):
             raise HTTPException(
                 status_code=400,
-                detail=f"Can only update border for discs with PENDING status"
+                detail=f"Can only update border for discs with PENDING or SUCCESS status"
             )
 
         # Get the disc's image record

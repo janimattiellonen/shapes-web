@@ -3,6 +3,7 @@ import { MainLayout } from '../layouts/MainLayout'
 import ShapeDetectionPage from '../pages/ShapeDetectionPage'
 import BorderDetectionPage from '../pages/BorderDetectionPage'
 import NewDiscPage from '../pages/NewDiscPage'
+import EditDiscPage from '../pages/EditDiscPage'
 import DiscsPage from '../pages/DiscsPage'
 import SearchDisc from '../pages/SearchDisc'
 
@@ -25,6 +26,10 @@ export const routes: RouteObject[] = [
       {
         path: '/discs/new',
         element: <NewDiscPage />
+      },
+      {
+        path: '/discs/:id/edit',
+        element: <EditDiscPage />
       },
       {
         path: '/discs/search',
