@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { BorderCanvas } from '../components/BorderCanvas'
 import '../components/BorderDetection.css'
 
@@ -123,12 +124,17 @@ interface DiscCardProps {
 }
 
 function DiscCard({ disc, onDelete }: DiscCardProps) {
+  const navigate = useNavigate()
   const imageRef = useRef<HTMLImageElement>(null)
   const [showBorder, setShowBorder] = useState<boolean>(true)
   const [imageError, setImageError] = useState<boolean>(false)
   const [isDeleting, setIsDeleting] = useState<boolean>(false)
 
   const imageUrl = disc.image_url ? `http://localhost:8000${disc.image_url}` : null
+
+  const handleEdit = () => {
+    navigate(`/discs/${disc.disc_id}/edit`)
+  }
 
   const handleDelete = async () => {
     if (!window.confirm('Do you want to delete this image?')) return
@@ -251,11 +257,18 @@ function DiscCard({ disc, onDelete }: DiscCardProps) {
         </div>
         <div className="action-buttons" style={{ marginTop: '1rem' }}>
           <button
+            onClick={handleEdit}
+            disabled={isDeleting}
+            className="save-button"
+          >
+            Edit
+          </button>
+          <button
             onClick={handleDelete}
             disabled={isDeleting}
             className="cancel-button"
           >
-            {isDeleting ? 'Deleting...' : 'Delete Image'}
+            {isDeleting ? 'Deleting...' : 'Delete'}
           </button>
         </div>
       </div>

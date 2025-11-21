@@ -370,6 +370,13 @@
   border-color: #535bf2;
 }
 
+.border-controls button.primary-button:disabled {
+  background: #a5a8f5;
+  border-color: #a5a8f5;
+  color: #e0e0e0;
+  cursor: not-allowed;
+}
+
 .border-canvas {
   pointer-events: auto;
 }

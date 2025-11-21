@@ -75,4 +75,8 @@ The REST route should be /hello-world
 
 I already have a keras model for detecting ellipses, rectangles and triangles. However, it is used by calling command line scripts written in python.
 
-This existing project is located in /Users/janimattiellonen/Documents/Development/Keras/Shapes. Open README.md to learn more about this project's setup. This information is provided as a context, and not relevant at the
+This existing project is located in /Users/janimattiellonen/Documents/Development/Keras/Shapes. Open README.md, read through it and present me a plan on how to use the existing model and shape detection code inside this web project, what files needs to be copied etc.
+
+Don't copy any files yet, provide a plan first.
+
+

@@ -187,7 +187,7 @@ export function BorderCanvas({
 
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
-  }, [border, showBorder, isSelected, isResizeMode, interactive, imageRef])
+  }, [border, showBorder, isSelected, isResizeMode, interactive, imageRef, canvasRef])
 
   return (
     <canvas
