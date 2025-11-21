@@ -859,6 +859,56 @@ async def cancel_disc(disc_id: int):
         )
 
 
+@upload_router.delete("/{disc_id}", response_model=DiscCancelResponse)
+async def delete_disc(disc_id: int):
+    """
+    Delete a disc and all associated data.
+
+    Deletes the disc record and all associated files from the filesystem.
+    Works for discs with any status.
+    """
+    try:
+        matcher = get_disc_matcher()
+        disc = matcher.database.get_disc_by_id(disc_id)
+        if not disc:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Disc {disc_id} not found"
+            )
+
+        # Delete files from filesystem
+        disc_dir = os.path.join(Config.UPLOAD_DIR, str(disc_id))
+        if os.path.exists(disc_dir):
+            shutil.rmtree(disc_dir)
+            logger.info(f"Deleted directory for disc {disc_id}: {disc_dir}")
+
+        # Delete from database (CASCADE will delete disc_images too)
+        success = matcher.database.delete_disc(disc_id)
+
+        if not success:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to delete disc {disc_id} from database"
+            )
+
+        logger.info(f"Disc {disc_id} deleted successfully")
+
+        return DiscCancelResponse(
+            disc_id=disc_id,
+            deleted=True,
+            message="Disc deleted successfully"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting disc: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error deleting disc: {str(e)}"
+        )
+
+
 @upload_router.put("/{disc_id}/border", response_model=BorderUpdateResponse)
 async def update_disc_border(disc_id: int, request: BorderUpdateRequest):
     """
