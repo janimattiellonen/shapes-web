@@ -272,7 +272,8 @@ export default function NewDiscPage() {
     const maxSize = Math.min(imageDimensions.width, imageDimensions.height) / 2
 
     if (border.type === 'circle') {
-      let { center, radius } = border
+      let { radius } = border
+      const center = { ...border.center }
 
       // Constrain radius
       radius = Math.max(minSize, Math.min(maxSize, radius))
@@ -284,7 +285,8 @@ export default function NewDiscPage() {
       return { ...border, center, radius }
     } else {
       // For ellipse, constrain proportionally
-      let { center, axes } = border
+      let { axes } = border
+      const center = { ...border.center }
       const maxAxis = Math.max(axes.major, axes.minor)
 
       if (maxAxis > maxSize) {

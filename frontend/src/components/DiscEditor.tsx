@@ -47,7 +47,7 @@ export function DiscEditor({
 
   const {
     currentBorder,
-    originalBorder,
+    // originalBorder is managed by the hook internally
     hasChanges,
     isSelected,
     isResizeMode,

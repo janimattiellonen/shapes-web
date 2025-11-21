@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { DiscEditor } from '../components/DiscEditor'
-import type { BorderInfo, Disc } from '../types/disc'
+import type { BorderInfo, DiscInfoResponse } from '../types/disc'
 import '../components/BorderDetection.css'
 
 export default function EditDiscPage() {
@@ -9,36 +9,36 @@ export default function EditDiscPage() {
   const navigate = useNavigate()
   const discId = parseInt(id || '0', 10)
 
-  const [disc, setDisc] = useState<Disc | null>(null)
+  const [disc, setDisc] = useState<DiscInfoResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [isSaving, setIsSaving] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
 
   useEffect(() => {
+    const fetchDisc = async () => {
+      try {
+        setLoading(true)
+        setError('')
+
+        const response = await fetch(`http://localhost:8000/discs/identification/${discId}`)
+        if (!response.ok) {
+          throw new Error(`Failed to fetch disc: ${response.status}`)
+        }
+
+        const data = await response.json()
+        setDisc(data)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch disc')
+      } finally {
+        setLoading(false)
+      }
+    }
+
     if (discId) {
       fetchDisc()
     }
   }, [discId])
-
-  const fetchDisc = async () => {
-    try {
-      setLoading(true)
-      setError('')
-
-      const response = await fetch(`http://localhost:8000/discs/identification/${discId}`)
-      if (!response.ok) {
-        throw new Error(`Failed to fetch disc: ${response.status}`)
-      }
-
-      const data = await response.json()
-      setDisc(data)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch disc')
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const handleSaveBorder = async (border: BorderInfo) => {
     const response = await fetch(`http://localhost:8000/discs/${discId}/border`, {
@@ -110,7 +110,7 @@ export default function EditDiscPage() {
   }
 
   // Get the first image from the images array
-  const discImage = (disc as any).images?.[0]
+  const discImage = disc.images?.[0]
 
   // Construct image URLs
   const baseUrl = 'http://localhost:8000'

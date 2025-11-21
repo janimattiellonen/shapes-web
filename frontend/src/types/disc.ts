@@ -16,11 +16,29 @@ export interface BorderEllipse {
 export type BorderInfo = BorderCircle | BorderEllipse
 
 export interface DiscImage {
-  image_id: number
+  id: number
+  disc_id: number
   image_url: string
   image_path: string | null
   cropped_image_path: string | null
   border_info: BorderInfo | null
+  model_name?: string
+  preprocessing_metadata?: Record<string, unknown>
+  created_at?: string
+}
+
+// Response from /discs/identification/{id} endpoint
+export interface DiscInfoResponse {
+  disc_id: number
+  owner_name: string
+  owner_contact: string
+  disc_model: string | null
+  disc_color: string | null
+  notes: string | null
+  status: string
+  location: string | null
+  registered_date: string
+  images: DiscImage[]
 }
 
 export interface Disc {
