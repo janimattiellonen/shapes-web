@@ -45,6 +45,7 @@ export default function NewDiscPage() {
   const [isResizeMode, setIsResizeMode] = useState<boolean>(false)
   const [hasChanges, setHasChanges] = useState<boolean>(false)
   const [showBorder, setShowBorder] = useState<boolean>(true)
+  const [isSavingBorder, setIsSavingBorder] = useState<boolean>(false)
 
   // Interaction state
   const [isDraggingBorder, setIsDraggingBorder] = useState<boolean>(false)
@@ -451,7 +452,7 @@ export default function NewDiscPage() {
   const handleSaveBorder = async () => {
     if (!uploadResult || !currentBorder) return
 
-    setIsSaving(true)
+    setIsSavingBorder(true)
     setError('')
 
     try {
@@ -476,12 +477,18 @@ export default function NewDiscPage() {
       setError(err instanceof Error ? err.message : 'An error occurred while saving border')
       console.error('Error saving border:', err)
     } finally {
-      setIsSaving(false)
+      setTimeout(() => setIsSavingBorder(false), 3000)
     }
   }
 
   const handleSaveDisc = async () => {
     if (!uploadResult) return
+
+    // Check if there's no border and confirm with user
+    if (!currentBorder) {
+      const confirmed = window.confirm('Do you really want to save without adding a border?')
+      if (!confirmed) return
+    }
 
     setIsSaving(true)
     setError('')
@@ -685,27 +692,33 @@ export default function NewDiscPage() {
           </button>
           <button
             onClick={handleSaveBorder}
-            disabled={!saveBorderEnabled || isSaving}
+            disabled={!saveBorderEnabled || isSavingBorder}
             className="primary-button"
           >
-            {isSaving ? 'Saving Border...' : 'Save Border'}
+            {isSavingBorder ? 'Saving Border...' : 'Save Border'}
           </button>
         </div>
       )}
 
+      {isSavingBorder && (
+        <div className="notice-container">
+          <p className="notice-message">Saving border details...</p>
+        </div>
+      )}
+
       <div className="action-buttons">
-        {uploadResult && !successMessage && (
+        {uploadResult && (
           <>
             <button
               onClick={handleSaveDisc}
-              disabled={isSaving || isCancelling}
+              disabled={isSaving || isCancelling || isSavingBorder}
               className="save-button"
             >
               {isSaving ? 'Saving...' : 'Save Disc'}
             </button>
             <button
               onClick={handleCancel}
-              disabled={isSaving || isCancelling}
+              disabled={isSaving || isCancelling || isSavingBorder}
               className="cancel-button"
             >
               {isCancelling ? 'Cancelling...' : 'Cancel'}
