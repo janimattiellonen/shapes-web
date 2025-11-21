@@ -225,8 +225,15 @@ class BorderService:
         filename = f"cropped_{timestamp}.jpg"
         image_path = os.path.join(disc_dir, filename)
 
-        # Save image
-        image.save(image_path, quality=95)
+        # Save image without EXIF (cropped images should not have orientation metadata)
+        # Convert to RGB if needed
+        if image.mode in ('RGBA', 'LA', 'P'):
+            rgb_image = Image.new('RGB', image.size, (255, 255, 255))
+            if image.mode == 'P':
+                image = image.convert('RGBA')
+            rgb_image.paste(image, mask=image.split()[-1] if image.mode in ('RGBA', 'LA') else None)
+            image = rgb_image
+        image.save(image_path, 'JPEG', quality=95, exif=b'')
 
         logger.debug(f"Saved cropped image to {image_path}")
 

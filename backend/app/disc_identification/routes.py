@@ -12,6 +12,7 @@ from pathlib import Path
 from .disc_matcher import DiscMatcher
 from .config import Config
 from .border_detection.disc_border_detector import DiscBorderDetector
+from .utils.image_utils import load_image_with_orientation
 import shutil
 
 logger = logging.getLogger(__name__)
@@ -128,7 +129,7 @@ async def register_disc(
 
     try:
         # Open image
-        pil_image = Image.open(io.BytesIO(contents))
+        pil_image = load_image_with_orientation(io.BytesIO(contents))
 
         # Add to database
         matcher = get_disc_matcher()
@@ -198,7 +199,7 @@ async def search_disc(
 
     try:
         # Open image
-        pil_image = Image.open(io.BytesIO(contents))
+        pil_image = load_image_with_orientation(io.BytesIO(contents))
 
         # Search for matches
         matcher = get_disc_matcher()
@@ -348,7 +349,7 @@ async def add_disc_image(disc_id: int, image: UploadFile = File(...)):
 
     try:
         # Open image
-        pil_image = Image.open(io.BytesIO(contents))
+        pil_image = load_image_with_orientation(io.BytesIO(contents))
 
         # Add image
         matcher = get_disc_matcher()
@@ -519,7 +520,7 @@ async def detect_border(image: UploadFile = File(...)):
 
     try:
         # Open image
-        pil_image = Image.open(io.BytesIO(contents))
+        pil_image = load_image_with_orientation(io.BytesIO(contents))
 
         # Detect border
         detector = DiscBorderDetector()
@@ -689,7 +690,7 @@ async def upload_disc(image: UploadFile = File(...)):
 
     try:
         # Open image
-        pil_image = Image.open(io.BytesIO(contents))
+        pil_image = load_image_with_orientation(io.BytesIO(contents))
 
         # Get disc matcher
         matcher = get_disc_matcher()
@@ -963,7 +964,7 @@ async def update_disc_border(disc_id: int, request: BorderUpdateRequest):
             )
 
         logger.info(f"Loading image from {image_path}")
-        pil_image = Image.open(image_path)
+        pil_image = load_image_with_orientation(image_path)
 
         # Apply the new border
         border_result = matcher.border_service.apply_border(
