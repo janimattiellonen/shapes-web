@@ -13,6 +13,7 @@ from .disc_matcher import DiscMatcher
 from .config import Config
 from .border_detection.disc_border_detector import DiscBorderDetector
 from .utils.image_utils import load_image_with_orientation
+from .disc_registration_service import DiscRegistrationService
 import shutil
 
 logger = logging.getLogger(__name__)
@@ -127,37 +128,35 @@ async def register_disc(
             detail=f"File too large. Maximum size is {Config.MAX_IMAGE_SIZE_MB}MB."
         )
 
-    try:
-        # Open image
-        pil_image = load_image_with_orientation(io.BytesIO(contents))
+    # Use registration service
+    matcher = get_disc_matcher()
+    service = DiscRegistrationService(disc_matcher=matcher)
 
-        # Add to database
-        matcher = get_disc_matcher()
-        result = matcher.add_disc(
-            image=pil_image,
-            owner_name=owner_name,
-            owner_contact=owner_contact,
-            image_filename=image.filename or "disc.jpg",
-            disc_model=disc_model,
-            disc_color=disc_color,
-            notes=notes,
-            status='registered',
-            location=location
-        )
+    result = service.register_from_bytes(
+        image_bytes=contents,
+        filename=image.filename or "disc.jpg",
+        owner_name=owner_name,
+        owner_contact=owner_contact,
+        disc_model=disc_model,
+        disc_color=disc_color,
+        notes=notes,
+        location=location,
+        status='registered',
+        upload_status='SUCCESS'
+    )
 
-        return DiscRegistrationResponse(
-            disc_id=result['disc_id'],
-            image_id=result['image_id'],
-            model_used=result['model_used'],
-            message="Disc registered successfully"
-        )
-
-    except Exception as e:
-        logger.error(f"Error registering disc: {e}")
+    if not result.success:
         raise HTTPException(
             status_code=500,
-            detail=f"Error processing image: {str(e)}"
+            detail=result.error_message or "Error processing image"
         )
+
+    return DiscRegistrationResponse(
+        disc_id=result.disc_id,
+        image_id=result.image_id,
+        model_used=result.model_used,
+        message="Disc registered successfully"
+    )
 
 
 @router.post("/search", response_model=DiscSearchResponse)
@@ -688,53 +687,53 @@ async def upload_disc(image: UploadFile = File(...)):
             detail=f"File too large. Maximum size is {Config.MAX_IMAGE_SIZE_MB}MB."
         )
 
-    try:
-        # Open image
-        pil_image = load_image_with_orientation(io.BytesIO(contents))
+    # Use registration service
+    matcher = get_disc_matcher()
+    service = DiscRegistrationService(disc_matcher=matcher)
 
-        # Get disc matcher
-        matcher = get_disc_matcher()
+    result = service.register_from_bytes(
+        image_bytes=contents,
+        filename=image.filename or "disc.jpg",
+        owner_name="Pending",
+        owner_contact="pending@example.com",
+        status='registered',
+        upload_status='PENDING'
+    )
 
-        # Add disc with PENDING status
-        # This creates both disc and disc_images records, generates embeddings
-        result = matcher.add_disc(
-            image=pil_image,
-            owner_name="Pending",
-            owner_contact="pending@example.com",
-            image_filename=image.filename or "disc.jpg",
-            status='registered',
-            upload_status='PENDING'
-        )
-
-        disc_id = result['disc_id']
-        border_info = result.get('border_info')
-        border_detected = border_info is not None
-
-        if border_detected:
-            logger.info(f"Border detected for disc {disc_id}: {border_info['type']}")
-            message = f"Border detected successfully ({border_info['type']})"
-        else:
-            logger.info(f"No border detected for disc {disc_id}")
-            message = "No border detected. You can still save this disc."
-
-        # Construct image URL
-        image_filename = image.filename or "disc.jpg"
-        image_url = f"/discs/identification/{disc_id}/images/{image_filename}"
-
-        return DiscUploadResponse(
-            disc_id=disc_id,
-            border_detected=border_detected,
-            border=border_info,
-            image_url=image_url,
-            message=message
-        )
-
-    except Exception as e:
-        logger.error(f"Error uploading disc: {e}")
+    if not result.success:
         raise HTTPException(
             status_code=500,
-            detail=f"Error processing image: {str(e)}"
+            detail=result.error_message or "Error processing image"
         )
+
+    disc_id = result.disc_id
+    border_detected = result.border_detected
+
+    if border_detected:
+        logger.info(f"Border detected for disc {disc_id} (confidence: {result.border_confidence:.2f})")
+        message = f"Border detected successfully (confidence: {result.border_confidence:.2f})"
+    else:
+        logger.info(f"No border detected for disc {disc_id}")
+        message = "No border detected. You can still save this disc."
+
+    # Construct image URL
+    image_filename = image.filename or "disc.jpg"
+    image_url = f"/discs/identification/{disc_id}/images/{image_filename}"
+
+    # Get border info from database if detected
+    border_info = None
+    if border_detected:
+        disc_image = matcher.database.get_disc_image_by_disc_id(disc_id)
+        if disc_image:
+            border_info = disc_image.get('border_info')
+
+    return DiscUploadResponse(
+        disc_id=disc_id,
+        border_detected=border_detected,
+        border=border_info,
+        image_url=image_url,
+        message=message
+    )
 
 
 @upload_router.post("/{disc_id}/confirm", response_model=DiscConfirmResponse)

@@ -48,14 +48,17 @@ After uploading the image, make it possible to move and resize the detected bord
     - if button is pressed, show a resize handle in the centre of the border
     - if resize handle is dragged up, the border size grows
     - if resize handle is dragged down, the border size shrinks
-
-
+    - cannot resize outside of image outer border
+    - cannot resize below 100px
 - possible to add a border, if no border was detected
     - "Add border" button becomes enabled
     - if clicked, create a new border, positioned in the centre of the image
 - a button named "Save border"
     - if clicked, update image's border details
     - button is disabled if no changes have been made
+- no change is saved until the user specifically clicks the "Save border" button
+
+Give me plan on how to implement this. Again, ask if unsure about something.
 
 
 Great! I've reviewed your existing system. Before creating the plan, I have some clarifying questions:
