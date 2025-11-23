@@ -14,6 +14,7 @@ from .config import Config
 from .border_detection.disc_border_detector import DiscBorderDetector
 from .utils.image_utils import load_image_with_orientation
 from .disc_registration_service import DiscRegistrationService
+from .ocr.ocr_service import OCRService
 import shutil
 
 logger = logging.getLogger(__name__)
@@ -1015,4 +1016,112 @@ async def update_disc_border(disc_id: int, request: BorderUpdateRequest):
         raise HTTPException(
             status_code=500,
             detail=f"Error updating border: {str(e)}"
+        )
+
+
+# OCR Text Detection Endpoints
+ocr_router = APIRouter(prefix="/discs/text-detection", tags=["text-detection"])
+
+
+class AvailableOCRsResponse(BaseModel):
+    """Response for available OCR engines."""
+    ocrs: List[str]
+    total: int
+
+
+class TextDetectionRequest(BaseModel):
+    """Request for text detection."""
+    ocr_name: str
+
+
+class TextDetectionResponse(BaseModel):
+    """Response for text detection."""
+    texts: List[str]
+    confidences: List[float]
+    bounding_boxes: List[Dict]
+    detected_count: int
+    ocr_used: str
+
+
+@ocr_router.get("/available-ocrs", response_model=AvailableOCRsResponse)
+async def get_available_ocrs():
+    """
+    Get list of available OCR engines.
+
+    Returns:
+        AvailableOCRsResponse with list of OCR engine names
+    """
+    try:
+        ocrs = OCRService.get_available_ocrs()
+        return AvailableOCRsResponse(
+            ocrs=ocrs,
+            total=len(ocrs)
+        )
+    except Exception as e:
+        logger.error(f"Error getting available OCRs: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error getting available OCRs: {str(e)}"
+        )
+
+
+@ocr_router.post("", response_model=TextDetectionResponse)
+async def detect_text(
+    image: UploadFile = File(...),
+    ocr_name: str = Form(...)
+):
+    """
+    Detect text in an image using specified OCR engine.
+
+    Upload an image and specify which OCR engine to use for text detection.
+
+    Args:
+        image: Image file (PNG, JPG, JPEG)
+        ocr_name: Name of OCR engine to use
+
+    Returns:
+        TextDetectionResponse with detected texts and metadata
+    """
+    # Validate file type
+    if image.content_type not in ["image/png", "image/jpeg", "image/jpg"]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid file type: {image.content_type}. Only PNG, JPG, JPEG are supported."
+        )
+
+    # Read and validate file size
+    contents = await image.read()
+    if len(contents) > Config.get_max_image_size_bytes():
+        raise HTTPException(
+            status_code=400,
+            detail=f"File too large. Maximum size is {Config.MAX_IMAGE_SIZE_MB}MB."
+        )
+
+    try:
+        # Open image
+        pil_image = load_image_with_orientation(io.BytesIO(contents))
+
+        # Detect text
+        result = OCRService.detect_text(pil_image, ocr_name)
+
+        return TextDetectionResponse(
+            texts=result.texts,
+            confidences=result.confidences,
+            bounding_boxes=result.bounding_boxes,
+            detected_count=len(result.texts),
+            ocr_used=ocr_name
+        )
+
+    except ValueError as e:
+        # OCR not found or not available
+        logger.error(f"OCR validation error: {e}")
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Error detecting text: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error processing image: {str(e)}"
         )

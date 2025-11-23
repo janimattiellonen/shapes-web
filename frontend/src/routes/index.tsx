@@ -6,6 +6,7 @@ import NewDiscPage from '../pages/NewDiscPage'
 import EditDiscPage from '../pages/EditDiscPage'
 import DiscsPage from '../pages/DiscsPage'
 import SearchDisc from '../pages/SearchDisc'
+import TextDetectionPage from '../pages/TextDetectionPage'
 
 export const routes: RouteObject[] = [
   {
@@ -34,6 +35,10 @@ export const routes: RouteObject[] = [
       {
         path: '/discs/search',
         element: <SearchDisc />
+      },
+      {
+        path: '/discs/text-detection',
+        element: <TextDetectionPage />
       }
     ]
   }

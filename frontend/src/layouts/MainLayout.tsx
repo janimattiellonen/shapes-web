@@ -9,6 +9,7 @@ export function MainLayout() {
         <Link to="/discs/search" className="nav-link">Search for Disc</Link>
         <Link to="/discs/shape-detection" className="nav-link">Shape Detection</Link>
         <Link to="/discs/border-detection" className="nav-link">Disc Border Detection</Link>
+        <Link to="/discs/text-detection" className="nav-link">Text Detection</Link>
         <a
           href="http://localhost:8000/docs"
           className="nav-link"
